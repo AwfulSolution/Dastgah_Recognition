@@ -49,6 +49,14 @@ This version avoids PyTorch and trains a multinomial logistic regression on mel-
 /Users/taha/Code/Dastgah_Classification/.venv/bin/streamlit run /Users/taha/Code/Dastgah_Classification/app.py
 ```
 
+To run again later:
+```
+/Users/taha/Code/Dastgah_Classification/.venv/bin/streamlit run /Users/taha/Code/Dastgah_Classification/app.py
+```
+
+Default model path in the UI:
+`models/model.joblib`
+
 ## Notes
 
 - Default segment length is 30s. Adjust with `--segment_seconds`.

@@ -89,7 +89,7 @@ st.title("Dastgah Classifier")
 
 model_path = st.text_input(
     "Model path",
-    value="/Users/taha/Code/Dastgah_Classification/runs/exp_sklearn_v2/model.joblib",
+    value="models/model.joblib",
 )
 segment_seconds = st.slider("Segment seconds", 10, 60, 30)
 num_segments = st.slider("Segments per track", 1, 12, 6)
