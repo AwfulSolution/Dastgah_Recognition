@@ -15,9 +15,11 @@ def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--model", required=True, help="Path to model.joblib")
     parser.add_argument("--input", required=True, help="Path to .mp3 or a folder of .mp3 files")
-    parser.add_argument("--segment_seconds", type=float, default=30.0)
-    parser.add_argument("--num_segments", type=int, default=6)
+    parser.add_argument("--segment_seconds", type=float, default=45.0)
+    parser.add_argument("--num_segments", type=int, default=10)
     parser.add_argument("--seed", type=int, default=42)
+    parser.add_argument("--trim_silence", action="store_true")
+    parser.add_argument("--trim_db", type=int, default=25)
     return parser.parse_args()
 
 
@@ -108,6 +110,8 @@ def main() -> None:
 
     for file_path in list_inputs(args.input):
         audio = load_audio(file_path, cfg)
+        if args.trim_silence:
+            audio, _ = librosa.effects.trim(audio, top_db=args.trim_db)
         starts = segment_starts(
             len(audio),
             cfg.sample_rate,

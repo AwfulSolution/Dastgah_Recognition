@@ -10,6 +10,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
+from sklearn.svm import SVC
 
 from src.dastgah.data import (
     LABELS,
@@ -38,7 +39,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val_split", type=float, default=0.15)
     parser.add_argument("--test_split", type=float, default=0.15)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--run_dir", default="runs/exp_sklearn")
+    parser.add_argument("--run_dir", default="runs/exp_ensemble")
     return parser.parse_args()
 
 
@@ -71,7 +72,6 @@ def segment_starts(
         rng = np.random.RandomState(seed)
         return rng.randint(0, max_start + 1, size=num_segments).tolist()
 
-    # eval: evenly spaced for stability
     return np.linspace(0, max_start, num_segments).astype(int).tolist()
 
 
@@ -183,18 +183,17 @@ def build_xy(
     return (np.vstack(features), np.array(targets, dtype=np.int64), track_ids)
 
 
-def predict_trackwise(model: Pipeline, X: np.ndarray, track_ids: List[int]) -> np.ndarray:
+def probs_by_track(model: Pipeline, X: np.ndarray, track_ids: List[int]) -> np.ndarray:
     probs = model.predict_proba(X)
     track_probs = {}
     for prob, tid in zip(probs, track_ids):
         if tid not in track_probs:
             track_probs[tid] = []
         track_probs[tid].append(prob)
-    preds = []
+    out = []
     for tid in sorted(track_probs.keys()):
-        avg_prob = np.mean(track_probs[tid], axis=0)
-        preds.append(int(np.argmax(avg_prob)))
-    return np.array(preds, dtype=np.int64)
+        out.append(np.mean(track_probs[tid], axis=0))
+    return np.vstack(out)
 
 
 def true_labels_by_track(track_ids: List[int], y: np.ndarray) -> np.ndarray:
@@ -268,7 +267,7 @@ def main() -> None:
         y_test = None
         test_track_ids = []
 
-    model = Pipeline(
+    lr_model = Pipeline(
         steps=[
             ("scaler", StandardScaler()),
             (
@@ -284,20 +283,54 @@ def main() -> None:
         ]
     )
 
-    model.fit(X_train, y_train)
+    svm_model = Pipeline(
+        steps=[
+            ("scaler", StandardScaler()),
+            (
+                "clf",
+                SVC(
+                    kernel="rbf",
+                    C=10.0,
+                    gamma="scale",
+                    class_weight="balanced",
+                    probability=True,
+                    random_state=args.seed,
+                ),
+            ),
+        ]
+    )
 
-    val_pred = predict_trackwise(model, X_val, val_track_ids)
-    val_true = true_labels_by_track(val_track_ids, y_val)
-    val_acc = accuracy_score(val_true, val_pred)
+    lr_model.fit(X_train, y_train)
+    svm_model.fit(X_train, y_train)
+
+    lr_val_probs = probs_by_track(lr_model, X_val, val_track_ids)
+    svm_val_probs = probs_by_track(svm_model, X_val, val_track_ids)
+    meta_X_val = np.hstack([lr_val_probs, svm_val_probs])
+    meta_y_val = true_labels_by_track(val_track_ids, y_val)
+
+    meta_model = LogisticRegression(
+        max_iter=1000,
+        multi_class="multinomial",
+        solver="lbfgs",
+        class_weight="balanced",
+        random_state=args.seed,
+    )
+    meta_model.fit(meta_X_val, meta_y_val)
+
+    val_pred = meta_model.predict(meta_X_val)
+    val_acc = accuracy_score(meta_y_val, val_pred)
     print(f"Val accuracy: {val_acc:.3f}")
 
     if X_test is not None and len(X_test) > 0:
-        test_pred = predict_trackwise(model, X_test, test_track_ids)
-        test_true = true_labels_by_track(test_track_ids, y_test)
-        test_acc = accuracy_score(test_true, test_pred)
+        lr_test_probs = probs_by_track(lr_model, X_test, test_track_ids)
+        svm_test_probs = probs_by_track(svm_model, X_test, test_track_ids)
+        meta_X_test = np.hstack([lr_test_probs, svm_test_probs])
+        meta_y_test = true_labels_by_track(test_track_ids, y_test)
+        test_pred = meta_model.predict(meta_X_test)
+        test_acc = accuracy_score(meta_y_test, test_pred)
         print(f"Test accuracy: {test_acc:.3f}")
-        cm = confusion_matrix(test_true, test_pred)
-        report = classification_report(test_true, test_pred, target_names=LABELS)
+        cm = confusion_matrix(meta_y_test, test_pred)
+        report = classification_report(meta_y_test, test_pred, target_names=LABELS)
     else:
         cm = None
         report = None
@@ -313,7 +346,9 @@ def main() -> None:
 
     import joblib
 
-    joblib.dump(model, os.path.join(args.run_dir, "model.joblib"))
+    joblib.dump(lr_model, os.path.join(args.run_dir, "lr_model.joblib"))
+    joblib.dump(svm_model, os.path.join(args.run_dir, "svm_model.joblib"))
+    joblib.dump(meta_model, os.path.join(args.run_dir, "meta_model.joblib"))
 
 
 if __name__ == "__main__":

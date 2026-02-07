@@ -37,10 +37,28 @@ The script will:
 ## Train (scikit-learn baseline)
 
 ```
-python train_sklearn.py --data /Users/taha/Code/Dastgah_Classification/Training_Data --run_dir runs/exp_sklearn --num_segments 6
+python train_sklearn.py --data /Users/taha/Code/Dastgah_Classification/Training_Data --run_dir runs/exp_sklearn --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache
 ```
 
 This version avoids PyTorch and trains a multinomial logistic regression on mel-spectrogram summary features.
+
+## Train (SVM)
+
+```
+python train_svm.py --data /Users/taha/Code/Dastgah_Classification/Training_Data --run_dir runs/exp_svm --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache
+```
+
+## Train (Ensemble: LR + SVM)
+
+```
+python train_ensemble.py --data /Users/taha/Code/Dastgah_Classification/Training_Data --run_dir runs/exp_ensemble --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache
+```
+
+## Compare Models
+
+```
+python compare_models.py --runs runs --out runs/compare_models.md
+```
 
 ## Web UI
 

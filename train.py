@@ -36,7 +36,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--test_split", type=float, default=0.15)
     parser.add_argument("--seed", type=int, default=42)
     parser.add_argument("--num_workers", type=int, default=2)
-    parser.add_argument("--device", default="cuda" if torch.cuda.is_available() else "cpu")
+    parser.add_argument(
+        "--device",
+        default="mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu"),
+    )
     parser.add_argument("--run_dir", default="runs/exp1")
     return parser.parse_args()
 

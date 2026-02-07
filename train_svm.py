@@ -6,10 +6,10 @@ from typing import List, Tuple
 
 import numpy as np
 import librosa
-from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
+from sklearn.svm import SVC
 
 from src.dastgah.data import (
     LABELS,
@@ -38,7 +38,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--val_split", type=float, default=0.15)
     parser.add_argument("--test_split", type=float, default=0.15)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--run_dir", default="runs/exp_sklearn")
+    parser.add_argument("--run_dir", default="runs/exp_svm")
     return parser.parse_args()
 
 
@@ -71,7 +71,6 @@ def segment_starts(
         rng = np.random.RandomState(seed)
         return rng.randint(0, max_start + 1, size=num_segments).tolist()
 
-    # eval: evenly spaced for stability
     return np.linspace(0, max_start, num_segments).astype(int).tolist()
 
 
@@ -273,11 +272,12 @@ def main() -> None:
             ("scaler", StandardScaler()),
             (
                 "clf",
-                LogisticRegression(
-                    max_iter=2000,
-                    multi_class="multinomial",
-                    solver="lbfgs",
+                SVC(
+                    kernel="rbf",
+                    C=10.0,
+                    gamma="scale",
                     class_weight="balanced",
+                    probability=True,
                     random_state=args.seed,
                 ),
             ),

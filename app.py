@@ -87,12 +87,25 @@ def list_mp3s(folder: str) -> List[str]:
 
 st.title("Dastgah Classifier")
 
-model_path = st.text_input(
-    "Model path",
-    value="models/model.joblib",
+st.markdown("### Model Selection")
+model_choice = st.selectbox(
+    "Choose model",
+    ["SVM", "LR (scikit)", "Ensemble (LR + SVM)", "Compare All"],
+    index=0,
 )
-segment_seconds = st.slider("Segment seconds", 10, 60, 30)
-num_segments = st.slider("Segments per track", 1, 12, 6)
+
+default_paths = {
+    "SVM": "/Users/taha/Code/Dastgah_Classification/runs/exp_svm/model.joblib",
+    "LR (scikit)": "/Users/taha/Code/Dastgah_Classification/runs/exp_sklearn_v2/model.joblib",
+    "Ensemble (LR + SVM)": "/Users/taha/Code/Dastgah_Classification/runs/exp_ensemble/meta_model.joblib",
+}
+
+default_value = default_paths.get(model_choice, default_paths["SVM"])
+model_path = st.text_input("Model path", value=default_value)
+segment_seconds = st.slider("Segment seconds", 10, 60, 45)
+num_segments = st.slider("Segments per track", 1, 12, 10)
+trim_silence = st.checkbox("Trim silence", value=True)
+trim_db = st.slider("Trim dB", 10, 40, 25)
 
 st.markdown("### Input")
 input_mode = st.radio("Choose input", ["Upload files", "Folder path"], horizontal=True)
@@ -111,7 +124,35 @@ if st.button("Classify"):
         st.error("Model not found. Check the model path.")
         st.stop()
 
-    model = joblib.load(model_path)
+    if model_choice == "Compare All":
+        lr_path = default_paths["LR (scikit)"]
+        svm_path = default_paths["SVM"]
+        ens_dir = os.path.dirname(default_paths["Ensemble (LR + SVM)"])
+        ens_lr = os.path.join(ens_dir, "lr_model.joblib")
+        ens_svm = os.path.join(ens_dir, "svm_model.joblib")
+        ens_meta = os.path.join(ens_dir, "meta_model.joblib")
+        missing = [p for p in [lr_path, svm_path, ens_lr, ens_svm, ens_meta] if not os.path.exists(p)]
+        if missing:
+            st.error("Missing model files: " + ", ".join(missing))
+            st.stop()
+        lr_model = joblib.load(lr_path)
+        svm_model = joblib.load(svm_path)
+        ens_lr_model = joblib.load(ens_lr)
+        ens_svm_model = joblib.load(ens_svm)
+        ens_meta_model = joblib.load(ens_meta)
+    elif model_choice == "Ensemble (LR + SVM)":
+        base_dir = os.path.dirname(model_path)
+        lr_path = os.path.join(base_dir, "lr_model.joblib")
+        svm_path = os.path.join(base_dir, "svm_model.joblib")
+        meta_path = model_path
+        if not (os.path.exists(lr_path) and os.path.exists(svm_path) and os.path.exists(meta_path)):
+            st.error("Ensemble files not found. Expecting lr_model.joblib, svm_model.joblib, meta_model.joblib")
+            st.stop()
+        lr_model = joblib.load(lr_path)
+        svm_model = joblib.load(svm_path)
+        meta_model = joblib.load(meta_path)
+    else:
+        model = joblib.load(model_path)
     cfg = FeatureConfig()
 
     results = []
@@ -126,13 +167,41 @@ if st.button("Classify"):
             st.stop()
         for path in file_paths:
             audio = load_audio(path, cfg)
+            if trim_silence:
+                audio, _ = librosa.effects.trim(audio, top_db=trim_db)
             starts = segment_starts(len(audio), cfg.sample_rate, segment_seconds, num_segments)
             seg_len = int(segment_seconds * cfg.sample_rate)
             seg_features = []
             for start in starts:
                 segment = audio[start : start + seg_len]
                 seg_features.append(extract_features(segment, cfg))
-            probs = model.predict_proba(np.vstack(seg_features)).mean(axis=0)
+            seg_features = np.vstack(seg_features)
+            if model_choice == "Compare All":
+                lr_probs = lr_model.predict_proba(seg_features).mean(axis=0)
+                svm_probs = svm_model.predict_proba(seg_features).mean(axis=0)
+                ens_lr_probs = ens_lr_model.predict_proba(seg_features).mean(axis=0)
+                ens_svm_probs = ens_svm_model.predict_proba(seg_features).mean(axis=0)
+                meta_input = np.hstack([ens_lr_probs, ens_svm_probs]).reshape(1, -1)
+                ens_probs = ens_meta_model.predict_proba(meta_input)[0]
+                results.append(
+                    {
+                        "file": os.path.basename(path),
+                        "lr_label": LABELS[int(np.argmax(lr_probs))],
+                        "lr_conf": float(np.max(lr_probs)),
+                        "svm_label": LABELS[int(np.argmax(svm_probs))],
+                        "svm_conf": float(np.max(svm_probs)),
+                        "ens_label": LABELS[int(np.argmax(ens_probs))],
+                        "ens_conf": float(np.max(ens_probs)),
+                    }
+                )
+                continue
+            elif model_choice == "Ensemble (LR + SVM)":
+                lr_probs = lr_model.predict_proba(seg_features).mean(axis=0)
+                svm_probs = svm_model.predict_proba(seg_features).mean(axis=0)
+                meta_input = np.hstack([lr_probs, svm_probs]).reshape(1, -1)
+                probs = meta_model.predict_proba(meta_input)[0]
+            else:
+                probs = model.predict_proba(seg_features).mean(axis=0)
             top_idx = int(np.argmax(probs))
             results.append(
                 {
@@ -151,13 +220,41 @@ if st.button("Classify"):
                 tmp.write(uploaded.getbuffer())
                 tmp_path = tmp.name
             audio = load_audio(tmp_path, cfg)
+            if trim_silence:
+                audio, _ = librosa.effects.trim(audio, top_db=trim_db)
             starts = segment_starts(len(audio), cfg.sample_rate, segment_seconds, num_segments)
             seg_len = int(segment_seconds * cfg.sample_rate)
             seg_features = []
             for start in starts:
                 segment = audio[start : start + seg_len]
                 seg_features.append(extract_features(segment, cfg))
-            probs = model.predict_proba(np.vstack(seg_features)).mean(axis=0)
+            seg_features = np.vstack(seg_features)
+            if model_choice == "Compare All":
+                lr_probs = lr_model.predict_proba(seg_features).mean(axis=0)
+                svm_probs = svm_model.predict_proba(seg_features).mean(axis=0)
+                ens_lr_probs = ens_lr_model.predict_proba(seg_features).mean(axis=0)
+                ens_svm_probs = ens_svm_model.predict_proba(seg_features).mean(axis=0)
+                meta_input = np.hstack([ens_lr_probs, ens_svm_probs]).reshape(1, -1)
+                ens_probs = ens_meta_model.predict_proba(meta_input)[0]
+                results.append(
+                    {
+                        "file": uploaded.name,
+                        "lr_label": LABELS[int(np.argmax(lr_probs))],
+                        "lr_conf": float(np.max(lr_probs)),
+                        "svm_label": LABELS[int(np.argmax(svm_probs))],
+                        "svm_conf": float(np.max(svm_probs)),
+                        "ens_label": LABELS[int(np.argmax(ens_probs))],
+                        "ens_conf": float(np.max(ens_probs)),
+                    }
+                )
+                continue
+            elif model_choice == "Ensemble (LR + SVM)":
+                lr_probs = lr_model.predict_proba(seg_features).mean(axis=0)
+                svm_probs = svm_model.predict_proba(seg_features).mean(axis=0)
+                meta_input = np.hstack([lr_probs, svm_probs]).reshape(1, -1)
+                probs = meta_model.predict_proba(meta_input)[0]
+            else:
+                probs = model.predict_proba(seg_features).mean(axis=0)
             top_idx = int(np.argmax(probs))
             results.append(
                 {
@@ -170,12 +267,15 @@ if st.button("Classify"):
             os.unlink(tmp_path)
 
     st.markdown("### Results")
-    st.dataframe(
-        [{k: v for k, v in row.items() if k != "probs"} for row in results],
-        use_container_width=True,
-    )
+    if model_choice == "Compare All":
+        st.dataframe(results, use_container_width=True)
+    else:
+        st.dataframe(
+            [{k: v for k, v in row.items() if k != "probs"} for row in results],
+            use_container_width=True,
+        )
 
-    st.markdown("### Confidence Breakdown")
-    for row in results:
-        st.write(f"**{row['file']}**")
-        st.bar_chart({label: float(prob) for label, prob in zip(LABELS, row["probs"])})
+        st.markdown("### Confidence Breakdown")
+        for row in results:
+            st.write(f"**{row['file']}**")
+            st.bar_chart({label: float(prob) for label, prob in zip(LABELS, row["probs"])})
