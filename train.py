@@ -28,14 +28,22 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--data", required=True, help="Path to parent data folder")
     parser.add_argument("--manifest", default="data/manifest.json")
     parser.add_argument("--splits", default="data/splits.json")
-    parser.add_argument("--segment_seconds", type=float, default=30.0)
+    parser.add_argument("--segment_seconds", type=float, default=45.0)
     parser.add_argument("--batch_size", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=20)
     parser.add_argument("--lr", type=float, default=1e-3)
     parser.add_argument("--val_split", type=float, default=0.15)
     parser.add_argument("--test_split", type=float, default=0.15)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--num_workers", type=int, default=2)
+    parser.add_argument("--num_workers", type=int, default=0)
+    parser.add_argument("--use_augment", action="store_true")
+    parser.add_argument("--time_mask", type=int, default=16)
+    parser.add_argument("--freq_mask", type=int, default=8)
+    parser.add_argument("--trim_silence", action="store_true")
+    parser.add_argument("--trim_db", type=int, default=25)
+    parser.add_argument("--num_train_segments", type=int, default=4)
+    parser.add_argument("--cache_mel", action="store_true")
+    parser.add_argument("--cache_dir", default="data/cache")
     parser.add_argument(
         "--device",
         default="mps" if torch.backends.mps.is_available() else ("cuda" if torch.cuda.is_available() else "cpu"),
@@ -86,7 +94,17 @@ def main() -> None:
         save_splits(splits, args.splits)
 
     feature_cfg = FeatureConfig()
-    seg_cfg = SegmentConfig(segment_seconds=args.segment_seconds)
+    seg_cfg = SegmentConfig(
+        segment_seconds=args.segment_seconds,
+        use_augment=args.use_augment,
+        time_mask_param=args.time_mask,
+        freq_mask_param=args.freq_mask,
+        trim_silence=args.trim_silence,
+        trim_db=args.trim_db,
+        num_train_segments=args.num_train_segments,
+        cache_mel=args.cache_mel,
+        cache_dir=args.cache_dir,
+    )
 
     train_set = DastgahDataset(select_tracks(tracks, splits["train"]), feature_cfg, seg_cfg, "train", args.seed)
     val_set = DastgahDataset(select_tracks(tracks, splits["val"]), feature_cfg, seg_cfg, "val", args.seed)

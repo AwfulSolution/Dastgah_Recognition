@@ -90,14 +90,14 @@ st.title("Dastgah Classifier")
 st.markdown("### Model Selection")
 model_choice = st.selectbox(
     "Choose model",
-    ["SVM", "LR (scikit)", "Ensemble (LR + SVM)", "Compare All"],
+    ["SVM", "LR (scikit)", "Ensemble (LR + SVM)", "Compare All (scikit)"],
     index=0,
 )
 
 default_paths = {
-    "SVM": "/Users/taha/Code/Dastgah_Classification/runs/exp_svm/model.joblib",
-    "LR (scikit)": "/Users/taha/Code/Dastgah_Classification/runs/exp_sklearn_v2/model.joblib",
-    "Ensemble (LR + SVM)": "/Users/taha/Code/Dastgah_Classification/runs/exp_ensemble/meta_model.joblib",
+    "SVM": "models/model.joblib",
+    "LR (scikit)": "runs/exp_sklearn_v2/model.joblib",
+    "Ensemble (LR + SVM)": "runs/exp_ensemble/meta_model.joblib",
 }
 
 default_value = default_paths.get(model_choice, default_paths["SVM"])
@@ -124,7 +124,7 @@ if st.button("Classify"):
         st.error("Model not found. Check the model path.")
         st.stop()
 
-    if model_choice == "Compare All":
+    if model_choice == "Compare All (scikit)":
         lr_path = default_paths["LR (scikit)"]
         svm_path = default_paths["SVM"]
         ens_dir = os.path.dirname(default_paths["Ensemble (LR + SVM)"])
@@ -176,7 +176,7 @@ if st.button("Classify"):
                 segment = audio[start : start + seg_len]
                 seg_features.append(extract_features(segment, cfg))
             seg_features = np.vstack(seg_features)
-            if model_choice == "Compare All":
+            if model_choice == "Compare All (scikit)":
                 lr_probs = lr_model.predict_proba(seg_features).mean(axis=0)
                 svm_probs = svm_model.predict_proba(seg_features).mean(axis=0)
                 ens_lr_probs = ens_lr_model.predict_proba(seg_features).mean(axis=0)
@@ -229,7 +229,7 @@ if st.button("Classify"):
                 segment = audio[start : start + seg_len]
                 seg_features.append(extract_features(segment, cfg))
             seg_features = np.vstack(seg_features)
-            if model_choice == "Compare All":
+            if model_choice == "Compare All (scikit)":
                 lr_probs = lr_model.predict_proba(seg_features).mean(axis=0)
                 svm_probs = svm_model.predict_proba(seg_features).mean(axis=0)
                 ens_lr_probs = ens_lr_model.predict_proba(seg_features).mean(axis=0)
@@ -267,7 +267,7 @@ if st.button("Classify"):
             os.unlink(tmp_path)
 
     st.markdown("### Results")
-    if model_choice == "Compare All":
+    if model_choice == "Compare All (scikit)":
         st.dataframe(results, use_container_width=True)
     else:
         st.dataframe(

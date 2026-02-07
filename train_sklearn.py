@@ -6,6 +6,7 @@ from typing import List, Tuple
 
 import numpy as np
 import librosa
+from tqdm import tqdm
 from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import StandardScaler
@@ -137,7 +138,7 @@ def build_xy(
     features = []
     targets = []
     track_ids = []
-    for idx, track in enumerate(tracks):
+    for idx, track in enumerate(tqdm(tracks, desc=f"Features ({mode})")):
         cache_sig = f"{cfg_sig}-trim{int(trim_silence)}-db{trim_db}"
         cached = load_cached_features(
             cache_dir,

@@ -25,7 +25,7 @@ pip install -r requirements.txt
 ## Train (PyTorch baseline)
 
 ```
-python train.py --data /Users/taha/Code/Dastgah_Classification/Training_Data --run_dir runs/exp1
+python train.py --data Training_Data --run_dir runs/exp1
 ```
 
 The script will:
@@ -37,7 +37,7 @@ The script will:
 ## Train (scikit-learn baseline)
 
 ```
-python train_sklearn.py --data /Users/taha/Code/Dastgah_Classification/Training_Data --run_dir runs/exp_sklearn --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache
+python train_sklearn.py --data Training_Data --run_dir runs/exp_sklearn --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache
 ```
 
 This version avoids PyTorch and trains a multinomial logistic regression on mel-spectrogram summary features.
@@ -45,13 +45,19 @@ This version avoids PyTorch and trains a multinomial logistic regression on mel-
 ## Train (SVM)
 
 ```
-python train_svm.py --data /Users/taha/Code/Dastgah_Classification/Training_Data --run_dir runs/exp_svm --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache
+python train_svm.py --data Training_Data --run_dir runs/exp_svm --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache
 ```
 
 ## Train (Ensemble: LR + SVM)
 
 ```
-python train_ensemble.py --data /Users/taha/Code/Dastgah_Classification/Training_Data --run_dir runs/exp_ensemble --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache
+python train_ensemble.py --data Training_Data --run_dir runs/exp_ensemble --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache
+```
+
+## Train (Ensemble: LR + SVM + PyTorch)
+
+```
+python train_ensemble_torch.py --data Training_Data --run_dir runs/exp_ensemble_torch --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache --torch_model runs/exp_torch/model.pt --device cpu
 ```
 
 ## Compare Models
@@ -63,13 +69,8 @@ python compare_models.py --runs runs --out runs/compare_models.md
 ## Web UI
 
 ```
-/Users/taha/Code/Dastgah_Classification/.venv/bin/pip install streamlit
-/Users/taha/Code/Dastgah_Classification/.venv/bin/streamlit run /Users/taha/Code/Dastgah_Classification/app.py
-```
-
-To run again later:
-```
-/Users/taha/Code/Dastgah_Classification/.venv/bin/streamlit run /Users/taha/Code/Dastgah_Classification/app.py
+pip install streamlit
+streamlit run app.py
 ```
 
 Default model path in the UI:

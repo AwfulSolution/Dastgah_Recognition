@@ -7,6 +7,8 @@ from typing import List, Tuple
 import numpy as np
 import librosa
 from tqdm import tqdm
+import torch
+from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import accuracy_score, confusion_matrix, classification_report
 from sklearn.preprocessing import StandardScaler
 from sklearn.pipeline import Pipeline
@@ -23,6 +25,7 @@ from src.dastgah.data import (
     save_splits,
 )
 from src.dastgah.features import FeatureConfig, load_audio, melspec
+from src.dastgah.model import SmallCnn
 from src.dastgah.cache import load_cached_features, save_cached_features
 
 
@@ -36,10 +39,10 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--cache_dir", default="data/cache")
     parser.add_argument("--trim_silence", action="store_true")
     parser.add_argument("--trim_db", type=int, default=25)
-    parser.add_argument("--val_split", type=float, default=0.15)
-    parser.add_argument("--test_split", type=float, default=0.15)
     parser.add_argument("--seed", type=int, default=42)
-    parser.add_argument("--run_dir", default="runs/exp_svm")
+    parser.add_argument("--run_dir", default="runs/exp_ensemble_torch")
+    parser.add_argument("--torch_model", default="runs/exp_torch/model.pt")
+    parser.add_argument("--device", default="cpu")
     return parser.parse_args()
 
 
@@ -183,18 +186,17 @@ def build_xy(
     return (np.vstack(features), np.array(targets, dtype=np.int64), track_ids)
 
 
-def predict_trackwise(model: Pipeline, X: np.ndarray, track_ids: List[int]) -> np.ndarray:
+def probs_by_track(model: Pipeline, X: np.ndarray, track_ids: List[int]) -> np.ndarray:
     probs = model.predict_proba(X)
     track_probs = {}
     for prob, tid in zip(probs, track_ids):
         if tid not in track_probs:
             track_probs[tid] = []
         track_probs[tid].append(prob)
-    preds = []
+    out = []
     for tid in sorted(track_probs.keys()):
-        avg_prob = np.mean(track_probs[tid], axis=0)
-        preds.append(int(np.argmax(avg_prob)))
-    return np.array(preds, dtype=np.int64)
+        out.append(np.mean(track_probs[tid], axis=0))
+    return np.vstack(out)
 
 
 def true_labels_by_track(track_ids: List[int], y: np.ndarray) -> np.ndarray:
@@ -203,6 +205,46 @@ def true_labels_by_track(track_ids: List[int], y: np.ndarray) -> np.ndarray:
         if tid not in seen:
             seen[tid] = y[idx]
     return np.array([seen[tid] for tid in sorted(seen.keys())], dtype=np.int64)
+
+
+def torch_probs_by_track(
+    model: SmallCnn,
+    tracks: List[Track],
+    cfg: FeatureConfig,
+    segment_seconds: float,
+    num_segments: int,
+    seed: int,
+    trim_silence: bool,
+    trim_db: int,
+    device: str,
+) -> np.ndarray:
+    model.eval()
+    probs_list = []
+    with torch.no_grad():
+        for idx, track in enumerate(tracks):
+            audio = load_audio(track.path, cfg)
+            if trim_silence:
+                audio, _ = librosa.effects.trim(audio, top_db=trim_db)
+            starts = segment_starts(
+                len(audio),
+                cfg.sample_rate,
+                segment_seconds,
+                num_segments,
+                mode="eval",
+                seed=file_seed(track.path, seed + idx),
+            )
+            seg_len = int(segment_seconds * cfg.sample_rate)
+            seg_probs = []
+            for start in starts:
+                segment = audio[start : start + seg_len]
+                mel = melspec(segment, cfg)
+                mel = (mel - mel.mean()) / (mel.std() + 1e-6)
+                x = torch.from_numpy(mel).unsqueeze(0).unsqueeze(0).to(device)
+                logits = model(x)
+                prob = torch.softmax(logits, dim=1).cpu().numpy()[0]
+                seg_probs.append(prob)
+            probs_list.append(np.mean(seg_probs, axis=0))
+    return np.vstack(probs_list)
 
 
 def main() -> None:
@@ -268,7 +310,23 @@ def main() -> None:
         y_test = None
         test_track_ids = []
 
-    model = Pipeline(
+    lr_model = Pipeline(
+        steps=[
+            ("scaler", StandardScaler()),
+            (
+                "clf",
+                LogisticRegression(
+                    max_iter=2000,
+                    multi_class="multinomial",
+                    solver="lbfgs",
+                    class_weight="balanced",
+                    random_state=args.seed,
+                ),
+            ),
+        ]
+    )
+
+    svm_model = Pipeline(
         steps=[
             ("scaler", StandardScaler()),
             (
@@ -285,20 +343,64 @@ def main() -> None:
         ]
     )
 
-    model.fit(X_train, y_train)
+    lr_model.fit(X_train, y_train)
+    svm_model.fit(X_train, y_train)
 
-    val_pred = predict_trackwise(model, X_val, val_track_ids)
-    val_true = true_labels_by_track(val_track_ids, y_val)
-    val_acc = accuracy_score(val_true, val_pred)
+    lr_val_probs = probs_by_track(lr_model, X_val, val_track_ids)
+    svm_val_probs = probs_by_track(svm_model, X_val, val_track_ids)
+
+    torch_model = SmallCnn(num_classes=len(LABELS))
+    torch_model.load_state_dict(torch.load(args.torch_model, map_location=args.device))
+    torch_model.to(args.device)
+    torch_val_probs = torch_probs_by_track(
+        torch_model,
+        val_tracks,
+        feature_cfg,
+        args.segment_seconds,
+        args.num_segments,
+        args.seed,
+        args.trim_silence,
+        args.trim_db,
+        args.device,
+    )
+
+    meta_X_val = np.hstack([lr_val_probs, svm_val_probs, torch_val_probs])
+    meta_y_val = true_labels_by_track(val_track_ids, y_val)
+
+    meta_model = LogisticRegression(
+        max_iter=1000,
+        multi_class="multinomial",
+        solver="lbfgs",
+        class_weight="balanced",
+        random_state=args.seed,
+    )
+    meta_model.fit(meta_X_val, meta_y_val)
+
+    val_pred = meta_model.predict(meta_X_val)
+    val_acc = accuracy_score(meta_y_val, val_pred)
     print(f"Val accuracy: {val_acc:.3f}")
 
     if X_test is not None and len(X_test) > 0:
-        test_pred = predict_trackwise(model, X_test, test_track_ids)
-        test_true = true_labels_by_track(test_track_ids, y_test)
-        test_acc = accuracy_score(test_true, test_pred)
+        lr_test_probs = probs_by_track(lr_model, X_test, test_track_ids)
+        svm_test_probs = probs_by_track(svm_model, X_test, test_track_ids)
+        torch_test_probs = torch_probs_by_track(
+            torch_model,
+            test_tracks,
+            feature_cfg,
+            args.segment_seconds,
+            args.num_segments,
+            args.seed,
+            args.trim_silence,
+            args.trim_db,
+            args.device,
+        )
+        meta_X_test = np.hstack([lr_test_probs, svm_test_probs, torch_test_probs])
+        meta_y_test = true_labels_by_track(test_track_ids, y_test)
+        test_pred = meta_model.predict(meta_X_test)
+        test_acc = accuracy_score(meta_y_test, test_pred)
         print(f"Test accuracy: {test_acc:.3f}")
-        cm = confusion_matrix(test_true, test_pred)
-        report = classification_report(test_true, test_pred, target_names=LABELS)
+        cm = confusion_matrix(meta_y_test, test_pred)
+        report = classification_report(meta_y_test, test_pred, target_names=LABELS)
     else:
         cm = None
         report = None
@@ -314,7 +416,9 @@ def main() -> None:
 
     import joblib
 
-    joblib.dump(model, os.path.join(args.run_dir, "model.joblib"))
+    joblib.dump(lr_model, os.path.join(args.run_dir, "lr_model.joblib"))
+    joblib.dump(svm_model, os.path.join(args.run_dir, "svm_model.joblib"))
+    joblib.dump(meta_model, os.path.join(args.run_dir, "meta_model.joblib"))
 
 
 if __name__ == "__main__":
