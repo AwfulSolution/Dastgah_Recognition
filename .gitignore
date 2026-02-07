@@ -1,0 +1,7 @@
+.DS_Store
+.venv/
+Training_Data/
+runs/
+data/
+__pycache__/
+*.pyc
