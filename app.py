@@ -12,6 +12,7 @@ from src.dastgah.features import FeatureConfig, load_audio, melspec
 
 
 st.set_page_config(page_title="Dastgah Classifier", layout="centered")
+APP_DIR = os.path.dirname(os.path.abspath(__file__))
 
 
 def segment_starts(
@@ -94,10 +95,43 @@ model_choice = st.selectbox(
     index=0,
 )
 
+def first_existing(candidates: List[str]) -> str:
+    for path in candidates:
+        if os.path.exists(path):
+            return path
+        app_rel = os.path.join(APP_DIR, path)
+        if os.path.exists(app_rel):
+            return app_rel
+    return candidates[0]
+
+
+def resolve_path(path: str) -> str:
+    if os.path.isabs(path):
+        return path
+    if os.path.exists(path):
+        return path
+    app_rel = os.path.join(APP_DIR, path)
+    return app_rel
+
+
 default_paths = {
-    "SVM": "models/model.joblib",
-    "LR (scikit)": "runs/exp_sklearn_v2/model.joblib",
-    "Ensemble (LR + SVM)": "runs/exp_ensemble/meta_model.joblib",
+    "SVM": first_existing(
+        [
+            "models/model.joblib",
+            "runs/exp_svm/model.joblib",
+        ]
+    ),
+    "LR (scikit)": first_existing(
+        [
+            "runs/exp_sklearn/model.joblib",
+            "runs/exp_sklearn_v2/model.joblib",
+        ]
+    ),
+    "Ensemble (LR + SVM)": first_existing(
+        [
+            "runs/exp_ensemble/meta_model.joblib",
+        ]
+    ),
 }
 
 default_value = default_paths.get(model_choice, default_paths["SVM"])
@@ -120,14 +154,23 @@ else:
     folder_path = st.text_input("Folder path with MP3s")
 
 if st.button("Classify"):
+    model_path = resolve_path(model_path)
     if not os.path.exists(model_path):
-        st.error("Model not found. Check the model path.")
+        st.error(
+            "Model not found. Checked path: "
+            + model_path
+            + " (cwd: "
+            + os.getcwd()
+            + ", app dir: "
+            + APP_DIR
+            + ")."
+        )
         st.stop()
 
     if model_choice == "Compare All (scikit)":
-        lr_path = default_paths["LR (scikit)"]
-        svm_path = default_paths["SVM"]
-        ens_dir = os.path.dirname(default_paths["Ensemble (LR + SVM)"])
+        lr_path = resolve_path(default_paths["LR (scikit)"])
+        svm_path = resolve_path(default_paths["SVM"])
+        ens_dir = os.path.dirname(resolve_path(default_paths["Ensemble (LR + SVM)"]))
         ens_lr = os.path.join(ens_dir, "lr_model.joblib")
         ens_svm = os.path.join(ens_dir, "svm_model.joblib")
         ens_meta = os.path.join(ens_dir, "meta_model.joblib")
