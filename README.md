@@ -1,82 +1,32 @@
-# Dastgah Classification
+# Dastgah_Classification
 
-This project trains a simple baseline classifier for 6 Dastgah classes using MP3 full tracks.
+This repository now contains two versions of the project:
 
-## Data layout
+- `Dastgah_Classifier_v1`: existing baseline/scikit/CNN pipeline
+- `Dastgah_Classifier_v2`: interval-first pipeline with stronger pitch/percussive filtering
 
-```
-Training_Data/
-  Chahargah/
-  Homayun/
-  Mahur/
-  Nava/
-  Segah/
-  Shur/
-```
+Shared dataset location (for both):
 
-## Setup
+- `Training_Data/`
 
-```
-python -m venv .venv
-source .venv/bin/activate
-pip install -r requirements.txt
+## Quick start (from repo root)
+
+### v1
+
+```bash
+python Dastgah_Classifier_v1/train_svm.py --data Training_Data
 ```
 
-## Train (PyTorch baseline)
-
-```
-python train.py --data Training_Data --run_dir runs/exp1
+```bash
+streamlit run Dastgah_Classifier_v1/app.py
 ```
 
-The script will:
-- build `data/manifest.json`
-- create a train/val/test split in `data/splits.json`
-- train a small CNN on mel-spectrograms
-- save `runs/exp1/model.pt`
+### v2
 
-## Train (scikit-learn baseline)
-
-```
-python train_sklearn.py --data Training_Data --run_dir runs/exp_sklearn --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache
+```bash
+python Dastgah_Classifier_v2/train_interval_model.py --data Training_Data
 ```
 
-This version avoids PyTorch and trains a multinomial logistic regression on mel-spectrogram summary features.
-
-## Train (SVM)
-
+```bash
+streamlit run Dastgah_Classifier_v2/app_v2.py
 ```
-python train_svm.py --data Training_Data --run_dir runs/exp_svm --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache
-```
-
-## Train (Ensemble: LR + SVM)
-
-```
-python train_ensemble.py --data Training_Data --run_dir runs/exp_ensemble --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache
-```
-
-## Train (Ensemble: LR + SVM + PyTorch)
-
-```
-python train_ensemble_torch.py --data Training_Data --run_dir runs/exp_ensemble_torch --segment_seconds 45 --num_segments 10 --trim_silence --cache_dir data/cache --torch_model runs/exp_torch/model.pt --device cpu
-```
-
-## Compare Models
-
-```
-python compare_models.py --runs runs --out runs/compare_models.md
-```
-
-## Web UI
-
-```
-pip install streamlit
-streamlit run app.py
-```
-
-Default model path in the UI:
-`models/model.joblib`
-
-## Notes
-
-- Default segment length is 30s. Adjust with `--segment_seconds`.
-- If you want to regenerate splits, delete `data/splits.json`.

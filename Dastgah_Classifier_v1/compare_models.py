@@ -3,6 +3,8 @@ import json
 import os
 from typing import Dict, Optional
 
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
 
 def read_metrics(path: str) -> Optional[Dict]:
     if not os.path.exists(path):
@@ -13,8 +15,8 @@ def read_metrics(path: str) -> Optional[Dict]:
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--runs", default="runs")
-    parser.add_argument("--out", default="runs/compare_models.md")
+    parser.add_argument("--runs", default=os.path.join(BASE_DIR, "runs"))
+    parser.add_argument("--out", default=os.path.join(BASE_DIR, "runs", "compare_models.md"))
     args = parser.parse_args()
 
     entries = {

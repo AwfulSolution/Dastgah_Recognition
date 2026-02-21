@@ -11,6 +11,7 @@ from torch.utils.data import Dataset
 from .data import Track, label_to_index
 from .features import FeatureConfig, load_audio, melspec
 from .cache import load_cached_mel, save_cached_mel
+from .scikit_features import extract_mode_features
 
 
 @dataclass
@@ -23,6 +24,9 @@ class SegmentConfig:
     trim_silence: bool = False
     trim_db: int = 25
     num_train_segments: int = 1
+    num_eval_segments: int = 10
+    use_mode_features: bool = False
+    mode_pitch_bins: int = 24
     cache_mel: bool = False
     cache_dir: str = "data/cache"
 
@@ -35,14 +39,19 @@ class DastgahDataset(Dataset):
         seg_cfg: SegmentConfig,
         mode: str,
         seed: int,
+        return_track_id: bool = False,
     ) -> None:
         self.tracks = tracks
         self.cfg = cfg
         self.seg_cfg = seg_cfg
         self.mode = mode
         self.seed = seed
+        self.return_track_id = return_track_id
         self.label_map = label_to_index()
-        self.track_segments = self.seg_cfg.num_train_segments if mode == "train" else 1
+        self._mode_cache = {}
+        self.track_segments = (
+            self.seg_cfg.num_train_segments if mode == "train" else self.seg_cfg.num_eval_segments
+        )
 
     def __len__(self) -> int:
         return len(self.tracks) * self.track_segments
@@ -67,11 +76,29 @@ class DastgahDataset(Dataset):
         mel = self._select_mel_segment(mel, track_idx, seg_idx)
         mel = self._fix_length(mel)
         mel = (mel - mel.mean()) / (mel.std() + 1e-6)
+        if self.seg_cfg.use_mode_features:
+            mode_vec = self._get_mode_vec(track)
+            mode_vec = (mode_vec - mode_vec.mean()) / (mode_vec.std() + 1e-6)
+            mode_map = np.repeat(mode_vec[:, None], mel.shape[1], axis=1).astype(np.float32)
+            mel = np.concatenate([mel, mode_map], axis=0)
         mel = torch.from_numpy(mel).unsqueeze(0)
         if self.mode == "train" and self.seg_cfg.use_augment:
             mel = self._spec_augment(mel)
         label = self.label_map[track.label]
+        if self.return_track_id:
+            return mel, label, track_idx
         return mel, label
+
+    def _get_mode_vec(self, track: Track) -> np.ndarray:
+        cached = self._mode_cache.get(track.path)
+        if cached is not None:
+            return cached
+        audio = load_audio(track.path, self.cfg)
+        if self.seg_cfg.trim_silence:
+            audio, _ = librosa.effects.trim(audio, top_db=self.seg_cfg.trim_db)
+        mode_vec = extract_mode_features(audio, self.cfg, self.seg_cfg.mode_pitch_bins).astype(np.float32)
+        self._mode_cache[track.path] = mode_vec
+        return mode_vec
 
     def _select_mel_segment(self, mel: np.ndarray, track_idx: int, seg_idx: int) -> np.ndarray:
         seg_frames = int(self.seg_cfg.segment_seconds * self.cfg.sample_rate / self.cfg.hop_length) + 1
