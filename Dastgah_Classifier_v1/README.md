@@ -92,7 +92,7 @@ Add `--low_compute` to scikit train/predict commands. If you keep default values
 ```
 python Dastgah_Classifier_v1/predict.py \
   --model Dastgah_Classifier_v1/runs/exp_sklearn/model.joblib \
-  --input /full/path/to/file_or_folder \
+  --input path/to/file_or_folder \
   --trim_silence \
   --use_mode_features
 ```

@@ -7,6 +7,8 @@ from sklearn.model_selection import train_test_split
 
 from . import LABELS
 
+AUDIO_EXTENSIONS = (".mp3", ".wav", ".flac", ".m4a", ".ogg")
+
 
 @dataclass
 class Track:
@@ -29,10 +31,11 @@ def build_manifest(data_root: str) -> List[Track]:
         if not os.path.isdir(class_dir):
             raise FileNotFoundError(f"Missing folder: {class_dir}")
         for name in sorted(os.listdir(class_dir)):
-            if name.lower().endswith(".mp3"):
+            if name.lower().endswith(AUDIO_EXTENSIONS):
                 tracks.append(Track(path=os.path.abspath(os.path.join(class_dir, name)), label=label))
     if not tracks:
-        raise RuntimeError("No .mp3 files found.")
+        exts = ", ".join(AUDIO_EXTENSIONS)
+        raise RuntimeError(f"No audio files found (expected extensions: {exts}).")
     return tracks
 
 

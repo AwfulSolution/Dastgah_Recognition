@@ -19,7 +19,7 @@ Interval-first Dastgah classifier focused on melodic interval structure, with ex
 
 ## Train
 
-From project root (`/Users/taha/Code/Dastgah_Classification`):
+From project root:
 
 ```bash
 python Dastgah_Classifier_v2/train_interval_model.py \
@@ -28,6 +28,7 @@ python Dastgah_Classifier_v2/train_interval_model.py \
   --model_type svm \
   --use_pca \
   --trim_silence \
+  --num_workers 4 \
   --num_segments 8 \
   --segment_seconds 20 \
   --voiced_ratio_threshold 0.30 \
@@ -44,7 +45,7 @@ Automatic behavior:
 
 ```bash
 python Dastgah_Classifier_v2/predict_interval_model.py \
-  --audio /absolute/path/to/audio.mp3 \
+  --audio path/to/audio.mp3 \
   --model_dir Dastgah_Classifier_v2/runs/exp_interval_svm_v1
 ```
 
@@ -55,6 +56,31 @@ streamlit run Dastgah_Classifier_v2/app_v2.py
 ```
 
 Then open the shown localhost URL in browser.
+
+## Optional: one-time dataset conversion to WAV
+
+This can reduce decode issues and speed repeated runs.
+
+```bash
+python Dastgah_Classifier_v2/convert_dataset_to_wav.py \
+  --input_root Training_Data \
+  --output_root Training_Data_wav \
+  --sample_rate 22050 \
+  --mono \
+  --num_workers 4
+```
+
+Then train with:
+
+```bash
+python Dastgah_Classifier_v2/train_interval_model.py \
+  --data Training_Data_wav \
+  --run_dir Dastgah_Classifier_v2/runs/exp_interval_svm_wav_v1 \
+  --model_type svm \
+  --use_pca \
+  --trim_silence \
+  --num_workers 4
+```
 
 ## Notes
 

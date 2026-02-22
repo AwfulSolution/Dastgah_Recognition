@@ -1,4 +1,5 @@
 import hashlib
+from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
 
@@ -237,6 +238,12 @@ def _stable_track_seed(track_path: str, seed: int) -> int:
     return (seed + int(digest, 16)) % (2**31 - 1)
 
 
+def _feature_job(job: Tuple[int, str, IntervalFeatureConfig, str, int, str]) -> Tuple[int, np.ndarray]:
+    idx, track_path, cfg, mode, seed, cache_dir = job
+    feat = extract_track_feature(track_path, cfg=cfg, mode=mode, seed=seed, cache_dir=cache_dir)
+    return idx, feat
+
+
 def extract_track_feature(
     track_path: str,
     cfg: IntervalFeatureConfig,
@@ -308,12 +315,39 @@ def build_track_matrix(
     cache_dir: str,
     label_to_idx: Dict[str, int],
     progress_label: str | None = None,
+    num_workers: int = 1,
 ) -> Tuple[np.ndarray, np.ndarray]:
-    X = []
+    if not tracks:
+        return np.empty((0, feature_dim(cfg) + 3), dtype=np.float32), np.empty((0,), dtype=np.int64)
+
+    jobs: List[Tuple[int, str, IntervalFeatureConfig, str, int, str]] = []
     y = []
-    iterator = tqdm(tracks, desc=progress_label) if progress_label else tracks
-    for t in iterator:
+    for idx, t in enumerate(tracks):
         track_seed = _stable_track_seed(t.path, seed)
-        X.append(extract_track_feature(t.path, cfg, mode=mode, seed=track_seed, cache_dir=cache_dir))
+        jobs.append((idx, t.path, cfg, mode, track_seed, cache_dir))
         y.append(label_to_idx[t.label])
-    return np.vstack(X), np.array(y, dtype=np.int64)
+
+    if num_workers <= 1:
+        X = []
+        iterator = tqdm(jobs, desc=progress_label) if progress_label else jobs
+        for job in iterator:
+            _, feat = _feature_job(job)
+            X.append(feat)
+        return np.vstack(X), np.array(y, dtype=np.int64)
+
+    results: List[np.ndarray | None] = [None] * len(jobs)
+    with ProcessPoolExecutor(max_workers=num_workers) as ex:
+        fut_map = {ex.submit(_feature_job, job): (job[0], job[1]) for job in jobs}
+        iterator = as_completed(fut_map)
+        if progress_label:
+            iterator = tqdm(iterator, total=len(fut_map), desc=progress_label)
+        for fut in iterator:
+            idx, path = fut_map[fut]
+            try:
+                out_idx, feat = fut.result()
+            except Exception as exc:
+                raise RuntimeError(f"Feature extraction failed for: {path}") from exc
+            results[out_idx] = feat
+
+    X_final = [x for x in results if x is not None]
+    return np.vstack(X_final), np.array(y, dtype=np.int64)

@@ -34,6 +34,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--val_split", type=float, default=0.15)
     p.add_argument("--test_split", type=float, default=0.15)
     p.add_argument("--seed", type=int, default=42)
+    p.add_argument("--num_workers", type=int, default=1, help="Feature extraction workers (processes)")
     p.add_argument("--rebuild_manifest", action="store_true")
     p.add_argument("--rebuild_splits", action="store_true")
 
@@ -118,6 +119,7 @@ def main() -> None:
         cache_dir=args.cache_dir,
         label_to_idx=l2i,
         progress_label="Features (train)",
+        num_workers=args.num_workers,
     )
     X_val, y_val = build_track_matrix(
         val_tracks,
@@ -127,6 +129,7 @@ def main() -> None:
         cache_dir=args.cache_dir,
         label_to_idx=l2i,
         progress_label="Features (val)",
+        num_workers=args.num_workers,
     )
     X_test, y_test = build_track_matrix(
         test_tracks,
@@ -136,6 +139,7 @@ def main() -> None:
         cache_dir=args.cache_dir,
         label_to_idx=l2i,
         progress_label="Features (test)",
+        num_workers=args.num_workers,
     )
 
     model = build_model(args.model_type, seed=args.seed, use_pca=args.use_pca, pca_variance=args.pca_variance)
