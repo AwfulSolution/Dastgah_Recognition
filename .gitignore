@@ -1,6 +1,7 @@
 .DS_Store
 .venv/
 Training_Data/
+Training_Data_wav/
 runs/
 data/
 __pycache__/
