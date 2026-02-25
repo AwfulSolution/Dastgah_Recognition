@@ -70,6 +70,11 @@ python Dastgah_Classifier_v2/convert_dataset_to_wav.py \
   --num_workers 4
 ```
 
+If some files fail conversion, they are logged to:
+
+- `Dastgah_Classifier_v2/logs/wav_conversion_failed_files.txt`
+- `Dastgah_Classifier_v2/logs/wav_conversion_failed_details.log`
+
 Then train with:
 
 ```bash
