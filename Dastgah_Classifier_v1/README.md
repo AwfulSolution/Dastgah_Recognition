@@ -27,7 +27,7 @@ pip install -r Dastgah_Classifier_v1/requirements.txt
 ```
 python Dastgah_Classifier_v1/train_sklearn.py \
   --data Training_Data \
-  --run_dir Dastgah_Classifier_v1/runs/exp_sklearn \
+  --run_dir Dastgah_Classifier_v1/runs/<run_name> \
   --segment_seconds 45 \
   --num_segments 10 \
   --trim_silence \
@@ -39,7 +39,7 @@ python Dastgah_Classifier_v1/train_sklearn.py \
 ```
 python Dastgah_Classifier_v1/train_svm.py \
   --data Training_Data \
-  --run_dir Dastgah_Classifier_v1/runs/exp_svm \
+  --run_dir Dastgah_Classifier_v1/runs/<run_name> \
   --segment_seconds 45 \
   --num_segments 10 \
   --trim_silence \
@@ -51,7 +51,7 @@ python Dastgah_Classifier_v1/train_svm.py \
 ```
 python Dastgah_Classifier_v1/train_ensemble.py \
   --data Training_Data \
-  --run_dir Dastgah_Classifier_v1/runs/exp_ensemble \
+  --run_dir Dastgah_Classifier_v1/runs/<run_name> \
   --segment_seconds 45 \
   --num_segments 10 \
   --trim_silence \
@@ -91,7 +91,7 @@ Add `--low_compute` to scikit train/predict commands. If you keep default values
 
 ```
 python Dastgah_Classifier_v1/predict.py \
-  --model Dastgah_Classifier_v1/runs/exp_sklearn/model.joblib \
+  --model Dastgah_Classifier_v1/runs/<run_name>/model.joblib \
   --input path/to/file_or_folder \
   --trim_silence \
   --use_mode_features
@@ -113,5 +113,6 @@ The UI now has controls for:
 
 ## Notes
 
+- `runs/` and `data/cache/` are local artifacts and are typically gitignored.
 - Cached features are saved in `Dastgah_Classifier_v1/data/cache` and keyed by feature configuration.
 - If you want to regenerate train/val/test split, delete `Dastgah_Classifier_v1/data/splits.json`.

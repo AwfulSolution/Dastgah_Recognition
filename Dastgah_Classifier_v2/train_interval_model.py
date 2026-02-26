@@ -17,7 +17,7 @@ if SRC not in sys.path:
 from dastgah_v2 import LABELS  # noqa: E402
 from dastgah_v2.data import Track, ensure_manifest_and_splits, label_to_index  # noqa: E402
 from dastgah_v2.interval_features import IntervalFeatureConfig, build_track_matrix  # noqa: E402
-from dastgah_v2.modeling import build_model  # noqa: E402
+from dastgah_v2.modeling import MODEL_TYPES, build_model  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -31,7 +31,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--models_dir", default=os.path.join(ROOT, "models"))
     p.add_argument("--production_model_name", default="model.joblib")
 
-    p.add_argument("--model_type", choices=["lr", "svm"], default="svm")
+    p.add_argument("--model_type", choices=list(MODEL_TYPES), default="svm")
     p.add_argument("--use_pca", action="store_true")
     p.add_argument("--pca_variance", type=float, default=0.95)
 
@@ -39,6 +39,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--test_split", type=float, default=0.15)
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--num_workers", type=int, default=1, help="Feature extraction workers (processes)")
+    p.add_argument("--model_jobs", type=int, default=1, help="Model parallelism: 1=single core, 0=all cores, -1=all cores")
     p.add_argument("--rebuild_manifest", action="store_true")
     p.add_argument("--rebuild_splits", action="store_true")
 
@@ -146,7 +147,13 @@ def main() -> None:
         num_workers=args.num_workers,
     )
 
-    model = build_model(args.model_type, seed=args.seed, use_pca=args.use_pca, pca_variance=args.pca_variance)
+    model = build_model(
+        args.model_type,
+        seed=args.seed,
+        use_pca=args.use_pca,
+        pca_variance=args.pca_variance,
+        model_jobs=args.model_jobs,
+    )
     model.fit(X_train, y_train)
 
     val_pred = model.predict(X_val)
@@ -169,6 +176,7 @@ def main() -> None:
         "val": val_m,
         "test": test_m,
         "model_type": args.model_type,
+        "model_jobs": args.model_jobs,
         "use_pca": args.use_pca,
         "pca_variance": args.pca_variance,
         "feature_config": cfg.__dict__,

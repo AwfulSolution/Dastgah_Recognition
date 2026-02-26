@@ -24,7 +24,7 @@ From project root:
 ```bash
 python Dastgah_Classifier_v2/train_interval_model.py \
   --data Training_Data \
-  --run_dir Dastgah_Classifier_v2/runs/exp_interval_svm_v1 \
+  --run_dir Dastgah_Classifier_v2/runs/<run_name> \
   --model_type svm \
   --use_pca \
   --trim_silence \
@@ -33,6 +33,50 @@ python Dastgah_Classifier_v2/train_interval_model.py \
   --segment_seconds 20 \
   --voiced_ratio_threshold 0.30 \
   --min_harmonic_ratio 0.55
+```
+
+Supported `--model_type` values:
+
+- `svm` (alias of `svm_rbf`)
+- `svm_rbf`
+- `svm_linear`
+- `lr`
+- `knn`
+- `rf`
+- `extratrees`
+- `catboost`
+- `ensemble` (soft-voting over multiple models)
+
+Parallelism controls:
+
+- `--num_workers`: feature extraction worker processes
+- `--model_jobs`: model training parallelism (`1` single-core, `0` or `-1` all cores)
+
+To switch classifier family, change only `--model_type`.
+
+Model-specific command examples (use your own run names):
+
+```bash
+# RBF SVM
+python Dastgah_Classifier_v2/train_interval_model.py --data Training_Data --run_dir Dastgah_Classifier_v2/runs/<run_name_svm_rbf> --model_type svm_rbf --use_pca --trim_silence
+
+# CatBoost
+python Dastgah_Classifier_v2/train_interval_model.py --data Training_Data --run_dir Dastgah_Classifier_v2/runs/<run_name_catboost> --model_type catboost --use_pca --trim_silence
+
+# ExtraTrees
+python Dastgah_Classifier_v2/train_interval_model.py --data Training_Data --run_dir Dastgah_Classifier_v2/runs/<run_name_extratrees> --model_type extratrees --use_pca --trim_silence
+
+# KNN
+python Dastgah_Classifier_v2/train_interval_model.py --data Training_Data --run_dir Dastgah_Classifier_v2/runs/<run_name_knn> --model_type knn --use_pca --trim_silence
+
+# Ensemble
+python Dastgah_Classifier_v2/train_interval_model.py --data Training_Data --run_dir Dastgah_Classifier_v2/runs/<run_name_ensemble> --model_type ensemble --use_pca --trim_silence
+```
+
+If you want to use `catboost` and it is not installed:
+
+```bash
+pip install catboost
 ```
 
 To export the trained run directly to a production-style `models/` slot (same pattern as v1), add:
@@ -53,14 +97,14 @@ Automatic behavior:
 ```bash
 python Dastgah_Classifier_v2/predict_interval_model.py \
   --audio path/to/audio.mp3 \
-  --model_dir Dastgah_Classifier_v2/runs/exp_interval_svm_v1
+  --model_dir Dastgah_Classifier_v2/runs/<run_name>
 ```
 
 ## Promote a run to `models/` (v1-style production slot)
 
 ```bash
 python Dastgah_Classifier_v2/promote_run_to_models.py \
-  --run_dir Dastgah_Classifier_v2/runs/exp_interval_svm_v1 \
+  --run_dir Dastgah_Classifier_v2/runs/<run_name> \
   --models_dir Dastgah_Classifier_v2/models
 ```
 
@@ -118,7 +162,7 @@ Then train with:
 ```bash
 python Dastgah_Classifier_v2/train_interval_model.py \
   --data Training_Data_wav \
-  --run_dir Dastgah_Classifier_v2/runs/exp_interval_svm_wav_v1 \
+  --run_dir Dastgah_Classifier_v2/runs/<run_name> \
   --model_type svm \
   --use_pca \
   --trim_silence \
@@ -127,6 +171,7 @@ python Dastgah_Classifier_v2/train_interval_model.py \
 
 ## Notes
 
+- `runs/` and `data/cache/` are local artifacts and are typically gitignored.
 - Cache is on disk under `Dastgah_Classifier_v2/data/cache` by default.
 - If you change feature settings, cache keys change automatically.
 - If some source files are corrupted, librosa/mpg123 warnings can still appear; those tracks are still handled best-effort.

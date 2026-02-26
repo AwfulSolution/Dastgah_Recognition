@@ -5,3 +5,4 @@ torch==2.3.1
 tqdm==4.66.4
 streamlit==1.54.0
 joblib==1.5.3
+catboost==1.2.8
