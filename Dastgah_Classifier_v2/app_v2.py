@@ -2,6 +2,7 @@ import json
 import os
 import sys
 import tempfile
+from typing import Dict, List, Tuple
 
 import joblib
 import numpy as np
@@ -16,10 +17,10 @@ if SRC not in sys.path:
 from dastgah_v2.interval_features import IntervalFeatureConfig, extract_track_feature  # noqa: E402
 
 
-def list_model_dirs(runs_dir: str) -> list[str]:
+def list_run_model_dirs(runs_dir: str) -> List[str]:
     if not os.path.isdir(runs_dir):
         return []
-    out = []
+    out: List[str] = []
     for name in sorted(os.listdir(runs_dir)):
         p = os.path.join(runs_dir, name)
         if not os.path.isdir(p):
@@ -29,24 +30,40 @@ def list_model_dirs(runs_dir: str) -> list[str]:
     return out
 
 
-def load_model_bundle(model_dir: str):
-    with open(os.path.join(model_dir, "model_config.json"), "r", encoding="utf-8") as f:
+def production_bundle(models_dir: str) -> Tuple[str, str] | None:
+    model_path = os.path.join(models_dir, "model.joblib")
+    cfg_path = os.path.join(models_dir, "model_config.json")
+    if os.path.exists(model_path) and os.path.exists(cfg_path):
+        return model_path, cfg_path
+    return None
+
+
+def load_bundle(model_path: str, cfg_path: str) -> Dict:
+    with open(cfg_path, "r", encoding="utf-8") as f:
         cfg = json.load(f)
-    model = joblib.load(os.path.join(model_dir, "model.joblib"))
+    model = joblib.load(model_path)
     labels = cfg["labels"]
     feat_cfg = IntervalFeatureConfig(**cfg["feature_config"])
     cache_dir = cfg.get("cache_dir", os.path.join(ROOT, "data", "cache"))
-    return model, labels, feat_cfg, cache_dir
+    return {
+        "model": model,
+        "labels": labels,
+        "feat_cfg": feat_cfg,
+        "cache_dir": cache_dir,
+        "model_path": model_path,
+        "cfg_path": cfg_path,
+    }
 
 
-def predict_file(model, labels, feat_cfg, cache_dir: str, file_path: str):
+def predict_file(bundle: Dict, file_path: str) -> Tuple[str, np.ndarray]:
     feat = extract_track_feature(
         track_path=file_path,
-        cfg=feat_cfg,
+        cfg=bundle["feat_cfg"],
         mode="inference",
         seed=42,
-        cache_dir=cache_dir,
+        cache_dir=bundle["cache_dir"],
     ).reshape(1, -1)
+    model = bundle["model"]
     if hasattr(model, "predict_proba"):
         probs = model.predict_proba(feat)[0]
     else:
@@ -54,37 +71,112 @@ def predict_file(model, labels, feat_cfg, cache_dir: str, file_path: str):
         scores = scores - np.max(scores)
         probs = np.exp(scores) / (np.sum(np.exp(scores)) + 1e-9)
     idx = int(np.argmax(probs))
-    return labels[idx], probs
+    return bundle["labels"][idx], probs
 
 
 st.set_page_config(page_title="Dastgah Classifier v2", layout="centered")
-st.title("Dastgah Classifier v2 (Interval-First)")
-st.caption("Uses interval transitions + cadence + voiced/harmonic filtering to suppress percussive/no-pitch segments.")
+st.title("Dastgah Classifier v2")
+st.caption("v2 setup with run-based models, production models/, and compare mode.")
 
 runs_dir = os.path.join(ROOT, "runs")
-model_dirs = list_model_dirs(runs_dir)
-if not model_dirs:
-    st.error("No trained model found. Train first with train_interval_model.py")
-    st.stop()
+models_dir = os.path.join(ROOT, "models")
+run_dirs = list_run_model_dirs(runs_dir)
+prod = production_bundle(models_dir)
 
-selected_model = st.selectbox("Model run", model_dirs, index=len(model_dirs) - 1)
-uploaded = st.file_uploader("Upload audio", type=["mp3", "wav", "flac", "m4a"])
+mode = st.selectbox("Mode", ["Single model", "Compare runs"], index=0)
+uploads = st.file_uploader("Upload audio files", type=["mp3", "wav", "flac", "m4a", "ogg"], accept_multiple_files=True)
 
-if uploaded is not None:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=os.path.splitext(uploaded.name)[1] or ".mp3") as tmp:
-        tmp.write(uploaded.read())
-        tmp_path = tmp.name
+if mode == "Single model":
+    source = st.selectbox("Model source", ["Run directory", "Production (models/model.joblib)"], index=0)
 
-    try:
-        model, labels, feat_cfg, cache_dir = load_model_bundle(selected_model)
-        pred_label, probs = predict_file(model, labels, feat_cfg, cache_dir, tmp_path)
+    selected_bundle = None
+    if source == "Run directory":
+        if not run_dirs:
+            st.error("No run models found in runs/. Train first.")
+            st.stop()
+        selected_run = st.selectbox("Run", run_dirs, index=len(run_dirs) - 1)
+        selected_bundle = load_bundle(
+            os.path.join(selected_run, "model.joblib"),
+            os.path.join(selected_run, "model_config.json"),
+        )
+    else:
+        if prod is None:
+            st.error("No production model found at models/model.joblib + models/model_config.json")
+            st.stop()
+        selected_bundle = load_bundle(prod[0], prod[1])
 
-        st.subheader(f"Prediction: {pred_label}")
-        df = pd.DataFrame({"label": labels, "probability": probs}).sort_values("probability", ascending=False)
-        st.bar_chart(df.set_index("label"))
-        st.dataframe(df, use_container_width=True)
-    finally:
+    if st.button("Classify", key="single_classify"):
+        if not uploads:
+            st.warning("Upload at least one audio file.")
+            st.stop()
+
+        temp_files: List[Tuple[str, str]] = []
         try:
-            os.remove(tmp_path)
-        except OSError:
-            pass
+            for up in uploads:
+                suffix = os.path.splitext(up.name)[1] or ".mp3"
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                    tmp.write(up.read())
+                    temp_files.append((up.name, tmp.name))
+
+            rows = []
+            first_probs = None
+            for display_name, tmp_path in temp_files:
+                pred_label, probs = predict_file(selected_bundle, tmp_path)
+                rows.append(
+                    {
+                        "file": display_name,
+                        "prediction": pred_label,
+                        "confidence": float(np.max(probs)),
+                    }
+                )
+                if first_probs is None:
+                    first_probs = probs
+
+            st.dataframe(pd.DataFrame(rows), use_container_width=True)
+            if first_probs is not None:
+                labels = selected_bundle["labels"]
+                st.bar_chart(pd.DataFrame({"label": labels, "probability": first_probs}).set_index("label"))
+        finally:
+            for _, tmp_path in temp_files:
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass
+
+else:
+    if not run_dirs:
+        st.error("No run models found in runs/. Train first.")
+        st.stop()
+
+    selected_runs = st.multiselect("Runs to compare", options=run_dirs, default=run_dirs[-min(3, len(run_dirs)) :])
+    if st.button("Compare", key="compare_runs"):
+        if not uploads:
+            st.warning("Upload at least one audio file.")
+            st.stop()
+        if not selected_runs:
+            st.warning("Select at least one run.")
+            st.stop()
+
+        bundles = {r: load_bundle(os.path.join(r, "model.joblib"), os.path.join(r, "model_config.json")) for r in selected_runs}
+        temp_files: List[Tuple[str, str]] = []
+        try:
+            for up in uploads:
+                suffix = os.path.splitext(up.name)[1] or ".mp3"
+                with tempfile.NamedTemporaryFile(delete=False, suffix=suffix) as tmp:
+                    tmp.write(up.read())
+                    temp_files.append((up.name, tmp.name))
+
+            rows = []
+            for display_name, tmp_path in temp_files:
+                row = {"file": display_name}
+                for run_dir, bundle in bundles.items():
+                    pred_label, probs = predict_file(bundle, tmp_path)
+                    row[os.path.basename(run_dir)] = f"{pred_label} ({float(np.max(probs)):.3f})"
+                rows.append(row)
+            st.dataframe(pd.DataFrame(rows), use_container_width=True)
+        finally:
+            for _, tmp_path in temp_files:
+                try:
+                    os.remove(tmp_path)
+                except OSError:
+                    pass

@@ -1,4 +1,5 @@
 import argparse
+import shutil
 import json
 import os
 import sys
@@ -26,6 +27,9 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--splits", default=os.path.join(ROOT, "data", "splits.json"))
     p.add_argument("--run_dir", default=os.path.join(ROOT, "runs", "exp_interval_svm"))
     p.add_argument("--cache_dir", default=os.path.join(ROOT, "data", "cache"))
+    p.add_argument("--export_production", action="store_true", help="Export model to models/ like v1 setup")
+    p.add_argument("--models_dir", default=os.path.join(ROOT, "models"))
+    p.add_argument("--production_model_name", default="model.joblib")
 
     p.add_argument("--model_type", choices=["lr", "svm"], default="svm")
     p.add_argument("--use_pca", action="store_true")
@@ -185,6 +189,15 @@ def main() -> None:
         json.dump(model_cfg, f, indent=2)
 
     print(f"Saved model: {model_path}")
+
+    if args.export_production:
+        os.makedirs(args.models_dir, exist_ok=True)
+        prod_model = os.path.join(args.models_dir, args.production_model_name)
+        prod_cfg = os.path.join(args.models_dir, "model_config.json")
+        shutil.copy2(model_path, prod_model)
+        shutil.copy2(os.path.join(args.run_dir, "model_config.json"), prod_cfg)
+        print(f"Exported production model: {prod_model}")
+        print(f"Exported production config: {prod_cfg}")
 
 
 if __name__ == "__main__":
