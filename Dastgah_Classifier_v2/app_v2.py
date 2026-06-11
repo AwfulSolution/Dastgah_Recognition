@@ -15,6 +15,7 @@ if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
 from dastgah_v2.interval_features import IntervalFeatureConfig, extract_track_feature  # noqa: E402
+from dastgah_v2.paths import resolve_config_path  # noqa: E402
 
 
 def list_run_model_dirs(runs_dir: str) -> List[str]:
@@ -44,7 +45,7 @@ def load_bundle(model_path: str, cfg_path: str) -> Dict:
     model = joblib.load(model_path)
     labels = cfg["labels"]
     feat_cfg = IntervalFeatureConfig(**cfg["feature_config"])
-    cache_dir = cfg.get("cache_dir", os.path.join(ROOT, "data", "cache"))
+    cache_dir = resolve_config_path(cfg.get("cache_dir"), ROOT, os.path.join(ROOT, "data", "cache"))
     return {
         "model": model,
         "labels": labels,

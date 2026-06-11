@@ -18,6 +18,7 @@ from dastgah_v2 import LABELS  # noqa: E402
 from dastgah_v2.data import Track, ensure_manifest_and_splits, label_to_index  # noqa: E402
 from dastgah_v2.interval_features import IntervalFeatureConfig, build_track_matrix  # noqa: E402
 from dastgah_v2.modeling import MODEL_TYPES, build_model  # noqa: E402
+from dastgah_v2.paths import portable_path  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -70,6 +71,16 @@ def metrics_dict(y_true: np.ndarray, y_pred: np.ndarray) -> dict:
         "macro_f1": float(f1_score(y_true, y_pred, average="macro", zero_division=0)),
         "balanced_acc": float(balanced_accuracy_score(y_true, y_pred)),
     }
+
+
+def evaluate_split(model, X: np.ndarray, y: np.ndarray, name: str) -> tuple[dict | None, np.ndarray | None]:
+    if X.shape[0] == 0:
+        print(f"{name}: skipped (empty split)")
+        return None, None
+    pred = model.predict(X)
+    metrics = metrics_dict(y, pred)
+    print(f"{name}: acc={metrics['acc']:.3f} macro_f1={metrics['macro_f1']:.3f} bal_acc={metrics['balanced_acc']:.3f}")
+    return metrics, pred
 
 
 def main() -> None:
@@ -156,17 +167,16 @@ def main() -> None:
     )
     model.fit(X_train, y_train)
 
-    val_pred = model.predict(X_val)
-    val_m = metrics_dict(y_val, val_pred)
-    print(f"Val: acc={val_m['acc']:.3f} macro_f1={val_m['macro_f1']:.3f} bal_acc={val_m['balanced_acc']:.3f}")
-
-    test_pred = model.predict(X_test)
-    test_m = metrics_dict(y_test, test_pred)
-    print(f"Test: acc={test_m['acc']:.3f} macro_f1={test_m['macro_f1']:.3f} bal_acc={test_m['balanced_acc']:.3f}")
+    val_m, _ = evaluate_split(model, X_val, y_val, "Val")
+    test_m, test_pred = evaluate_split(model, X_test, y_test, "Test")
 
     class_ids = list(range(len(LABELS)))
-    cm = confusion_matrix(y_test, test_pred, labels=class_ids)
-    report = classification_report(y_test, test_pred, labels=class_ids, target_names=LABELS, zero_division=0)
+    if test_pred is None:
+        cm = np.zeros((len(LABELS), len(LABELS)), dtype=np.int64)
+        report = "Test split is empty; no classification report was generated.\n"
+    else:
+        cm = confusion_matrix(y_test, test_pred, labels=class_ids)
+        report = classification_report(y_test, test_pred, labels=class_ids, target_names=LABELS, zero_division=0)
 
     np.save(os.path.join(args.run_dir, "confusion.npy"), cm)
     with open(os.path.join(args.run_dir, "classification_report.txt"), "w", encoding="utf-8") as f:
@@ -191,7 +201,7 @@ def main() -> None:
         "model_type": "interval_v2",
         "labels": LABELS,
         "feature_config": cfg.__dict__,
-        "cache_dir": args.cache_dir,
+        "cache_dir": portable_path(args.cache_dir, ROOT),
     }
     with open(os.path.join(args.run_dir, "model_config.json"), "w", encoding="utf-8") as f:
         json.dump(model_cfg, f, indent=2)

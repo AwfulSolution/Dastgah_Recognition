@@ -1,7 +1,10 @@
 import hashlib
+import os
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
 from typing import Dict, List, Tuple
+
+os.environ.setdefault("NUMBA_CACHE_DIR", os.path.join("/private", "tmp", "dastgah_numba_cache"))
 
 import librosa
 import numpy as np

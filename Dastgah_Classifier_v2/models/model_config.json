@@ -1,0 +1,28 @@
+{
+  "model_type": "interval_v2",
+  "labels": [
+    "Chahargah",
+    "Homayun",
+    "Mahur",
+    "Nava",
+    "Segah",
+    "Shur"
+  ],
+  "feature_config": {
+    "sample_rate": 22050,
+    "n_fft": 2048,
+    "hop_length": 256,
+    "bins_per_octave": 24,
+    "segment_seconds": 20.0,
+    "num_segments": 8,
+    "trim_silence": true,
+    "trim_db": 25,
+    "voiced_ratio_threshold": 0.3,
+    "min_voiced_ms": 120.0,
+    "min_harmonic_ratio": 0.55,
+    "cadence_fraction": 0.15,
+    "step_clip_bins": 12,
+    "duration_bins": 8
+  },
+  "cache_dir": "/Users/taha/Code/Dastgah_Classification/Dastgah_Classifier_v2/data/cache"
+}

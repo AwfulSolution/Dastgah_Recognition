@@ -13,6 +13,7 @@ if SRC not in sys.path:
     sys.path.insert(0, SRC)
 
 from dastgah_v2.interval_features import IntervalFeatureConfig, extract_track_feature  # noqa: E402
+from dastgah_v2.paths import resolve_config_path  # noqa: E402
 
 
 def parse_args() -> argparse.Namespace:
@@ -46,7 +47,8 @@ def main() -> None:
 
     labels = model_cfg["labels"]
     feat_cfg = IntervalFeatureConfig(**model_cfg["feature_config"])
-    cache_dir = args.cache_dir or model_cfg.get("cache_dir") or os.path.join(ROOT, "data", "cache")
+    default_cache_dir = os.path.join(ROOT, "data", "cache")
+    cache_dir = args.cache_dir or resolve_config_path(model_cfg.get("cache_dir"), ROOT, default_cache_dir)
 
     model = joblib.load(model_path)
     feat = extract_track_feature(

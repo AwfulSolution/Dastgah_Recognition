@@ -52,8 +52,12 @@ def load_manifest(path: str) -> List[Track]:
 
 
 def build_splits(tracks: List[Track], val_split: float, test_split: float, seed: int) -> Dict[str, List[int]]:
+    if val_split < 0 or test_split < 0:
+        raise ValueError("val_split and test_split must be >= 0")
     if val_split + test_split >= 1.0:
         raise ValueError("val_split + test_split must be < 1")
+    if val_split + test_split <= 0:
+        return {"train": list(range(len(tracks))), "val": [], "test": []}
 
     y = [t.label for t in tracks]
     idx = list(range(len(tracks)))

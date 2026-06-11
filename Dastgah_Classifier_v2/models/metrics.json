@@ -1,0 +1,32 @@
+{
+  "val": {
+    "acc": 0.6666666666666666,
+    "macro_f1": 0.66045232907978,
+    "balanced_acc": 0.6436507936507936
+  },
+  "test": {
+    "acc": 0.7647058823529411,
+    "macro_f1": 0.7578787878787878,
+    "balanced_acc": 0.7474747474747474
+  },
+  "model_type": "catboost",
+  "model_jobs": 2,
+  "use_pca": true,
+  "pca_variance": 0.95,
+  "feature_config": {
+    "sample_rate": 22050,
+    "n_fft": 2048,
+    "hop_length": 256,
+    "bins_per_octave": 24,
+    "segment_seconds": 20.0,
+    "num_segments": 8,
+    "trim_silence": true,
+    "trim_db": 25,
+    "voiced_ratio_threshold": 0.3,
+    "min_voiced_ms": 120.0,
+    "min_harmonic_ratio": 0.55,
+    "cadence_fraction": 0.15,
+    "step_clip_bins": 12,
+    "duration_bins": 8
+  }
+}
