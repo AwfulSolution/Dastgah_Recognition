@@ -4,5 +4,12 @@ Training_Data/
 Training_Data_wav/
 runs/
 data/
+Dastgah_Classifier_v1/runs/
+Dastgah_Classifier_v1/data/
+Dastgah_Classifier_v2/runs/
+Dastgah_Classifier_v2/data/
+Dastgah_Classifier_v3/runs/
+Dastgah_Classifier_v3/data/
+external/
 __pycache__/
 *.pyc

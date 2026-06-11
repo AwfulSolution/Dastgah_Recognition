@@ -23,6 +23,10 @@ Target classes:
 - `Dastgah_Classifier_v2`
   - Interval-first redesign.
   - Focuses on pitch-interval behavior, tonic/cadence patterns, and better filtering of non-pitched percussion-heavy segments.
+- `Dastgah_Classifier_v3`
+  - Phrase-aware melodic redesign.
+  - Converts pitch frames into note events, estimates a track-level tonic, and adds phrase cadence plus interval-sequence features.
+  - Current production model: CatBoost on 30s x 6 segments (test acc 0.765, macro F1 0.750; see `Dastgah_Classifier_v3/README.md`).
 
 Shared dataset location (for both):
 
@@ -53,6 +57,12 @@ Training_Data/
 - Extracts interval-centric representations from harmonic content.
 - Uses voiced/harmonic gating to suppress low-pitch/no-pitch and percussive segments.
 - Designed to better capture Dastgah-defining melodic interval relations.
+
+### v3
+
+- Extracts note events from harmonic pitch tracks before feature pooling.
+- Estimates tonic at track level using duration-weighted pitch usage, stable notes, and phrase endings.
+- Adds cadence, stable-note, transition, and step-bigram features so some melodic order survives the feature vector.
 
 ## Typical workflow
 
@@ -87,4 +97,14 @@ python Dastgah_Classifier_v2/train_interval_model.py --data Training_Data
 
 ```bash
 streamlit run Dastgah_Classifier_v2/app_v2.py
+```
+
+### v3
+
+```bash
+python Dastgah_Classifier_v3/train_melodic_model.py --data Training_Data
+```
+
+```bash
+streamlit run Dastgah_Classifier_v3/app_v3.py
 ```

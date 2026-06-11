@@ -1,0 +1,38 @@
+{
+  "val": {
+    "acc": 0.7254901960784313,
+    "macro_f1": 0.7207498383968972,
+    "balanced_acc": 0.721626984126984
+  },
+  "test": {
+    "acc": 0.7647058823529411,
+    "macro_f1": 0.7502373632808416,
+    "balanced_acc": 0.7526936026936027
+  },
+  "model_type": "catboost",
+  "model_jobs": 0,
+  "use_pca": false,
+  "pca_variance": 0.95,
+  "feature_config": {
+    "sample_rate": 22050,
+    "n_fft": 2048,
+    "hop_length": 512,
+    "bins_per_octave": 24,
+    "segment_seconds": 30.0,
+    "num_segments": 6,
+    "trim_silence": true,
+    "trim_db": 25,
+    "voiced_ratio_threshold": 0.25,
+    "min_voiced_ms": 120.0,
+    "min_harmonic_ratio": 0.5,
+    "min_note_ms": 90.0,
+    "stable_note_ms": 220.0,
+    "phrase_gap_ms": 280.0,
+    "cadence_notes": 3,
+    "cadence_weight": 1.6,
+    "stable_weight": 0.8,
+    "step_clip_bins": 12,
+    "duration_bins": 8,
+    "tonic_strategy": "vote"
+  }
+}
