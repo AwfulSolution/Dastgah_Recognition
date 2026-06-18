@@ -26,6 +26,7 @@ Notable findings (full tables in `runs/compare_models_v3.md` and `runs/cadence_s
 - `hop_length=512` matches 256 on val/test at half the pyin cost (5-fold CV confirmed) and is now the default.
 - `tonic_strategy=vote` gives the best Homayun F1 (0.653 vs 0.594 pooled in CV) with the lowest fold variance, at equal macro F1; now the default. Pooled tonic estimates flip toward the shahed on shahed-heavy Homayun tracks, rotating interval histograms into Chahargah.
 - Cadence-weight sweep (cw 1.6-4.0 x cn 3/5) found the existing 1.6/3 already optimal; heavier cadence weighting amplifies phrase-detection noise and hurts.
+- Segment budget is also optimal at 30s x 6: 45s x 6 underperforms on both splits, and 30s x 8 is statistically identical in 5-fold CV at 33% more extraction cost.
 - Remaining known weakness: avaz recordings that modulate through foreign gushehs; would need segment-level prediction with voting/abstention.
 
 ## Train
