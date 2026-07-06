@@ -45,6 +45,10 @@ class MelodicFeatureConfig:
     step_clip_bins: int = 12
     duration_bins: int = 8
     tonic_strategy: str = "vote"  # "pooled": argmax over all notes; "vote": per-segment tonic vote
+    # Note-function features (shahed/ist): which degrees carry emphasis and
+    # where phrases resolve, relative to the tonic. These target the modes that
+    # share scale material but differ in note function (Segah/Shur families).
+    function_features: bool = True
 
 
 @dataclass
@@ -56,10 +60,16 @@ class NoteEvent:
     duration_frames: int
 
 
+def function_dim(cfg: MelodicFeatureConfig) -> int:
+    # shahed one-hot, vice-shahed one-hot, ist one-hot, shahed-ist relation
+    # one-hot, phrase-position profile, plus 6 scalars.
+    return cfg.bins_per_octave * 5 + 6 if cfg.function_features else 0
+
+
 def feature_dim(cfg: MelodicFeatureConfig) -> int:
     bins = cfg.bins_per_octave
     step_bins = cfg.step_clip_bins * 2 + 1
-    return (bins * bins) + (bins * 5) + step_bins + (step_bins * step_bins) + cfg.duration_bins + 16
+    return (bins * bins) + (bins * 5) + step_bins + (step_bins * step_bins) + cfg.duration_bins + function_dim(cfg) + 16
 
 
 def cfg_signature(cfg: MelodicFeatureConfig) -> str:
@@ -74,6 +84,8 @@ def cfg_signature(cfg: MelodicFeatureConfig) -> str:
     # Appended conditionally so caches built before this option existed stay valid.
     if cfg.tonic_strategy != "pooled":
         sig += f"-ts{cfg.tonic_strategy}"
+    if cfg.function_features:
+        sig += "-fn1"
     return sig
 
 
@@ -326,6 +338,79 @@ def _safe_hist(vals: np.ndarray, minlength: int, weights: np.ndarray | None = No
     return (hist / (hist.sum() + 1e-9)).astype(np.float32)
 
 
+def _function_block(
+    notes: List[NoteEvent],
+    intervals: np.ndarray,
+    durations: np.ndarray,
+    groups: List[List[int]],
+    cfg: MelodicFeatureConfig,
+) -> np.ndarray:
+    """Note-function features: shahed (emphasis center), ist (resolution
+    center), their relation, and a phrase-position-weighted profile.
+
+    All degree indices are tonic-relative. One-hots are scaled by the share
+    of evidence behind them so a weakly-dominant shahed reads differently
+    from an overwhelming one.
+    """
+    bins = cfg.bins_per_octave
+
+    emphasis = np.bincount(intervals, weights=durations, minlength=bins).astype(np.float64)
+    emphasis_total = emphasis.sum() + 1e-9
+    order = np.argsort(emphasis)[::-1]
+    shahed, vice = int(order[0]), int(order[1])
+    shahed_share = float(emphasis[shahed] / emphasis_total)
+    vice_share = float(emphasis[vice] / emphasis_total)
+    shahed_margin = float((emphasis[shahed] - emphasis[vice]) / (emphasis[shahed] + 1e-9))
+
+    shahed_hot = np.zeros(bins, dtype=np.float32)
+    shahed_hot[shahed] = shahed_share
+    vice_hot = np.zeros(bins, dtype=np.float32)
+    vice_hot[vice] = vice_share
+
+    # Ist: phrase-final notes, duration-weighted, doubled when approached
+    # from above (a forud resolves downward onto the ist).
+    ist_scores = np.zeros(bins, dtype=np.float64)
+    for group in groups:
+        last = group[-1]
+        w = float(durations[last])
+        if len(group) > 1 and notes[group[-2]].midi_mean > notes[last].midi_mean:
+            w *= 2.0
+        ist_scores[intervals[last]] += w
+    ist_total = ist_scores.sum()
+    ist_hot = np.zeros(bins, dtype=np.float32)
+    if ist_total > 0:
+        ist = int(np.argmax(ist_scores))
+        ist_share = float(ist_scores[ist] / ist_total)
+        ist_hot[ist] = ist_share
+    else:
+        ist, ist_share = 0, 0.0
+
+    rel_hot = np.zeros(bins, dtype=np.float32)
+    rel_hot[(shahed - ist) % bins] = 1.0
+
+    # Phrase-position profile: emphasis weighted toward phrase endings,
+    # a smooth forud-flavored counterpart to the final-note cadence hist.
+    pos_scores = np.zeros(bins, dtype=np.float64)
+    for group in groups:
+        glen = len(group)
+        for j, idx in enumerate(group):
+            pos_scores[intervals[idx]] += durations[idx] * ((j + 1) / glen) ** 2
+    pos_hist = (pos_scores / (pos_scores.sum() + 1e-9)).astype(np.float32)
+
+    scalars = np.array(
+        [
+            shahed_share,
+            shahed_margin,
+            ist_share,
+            1.0 if shahed == 0 else 0.0,
+            1.0 if ist == 0 else 0.0,
+            1.0 if shahed == ist else 0.0,
+        ],
+        dtype=np.float32,
+    )
+    return np.concatenate([shahed_hot, vice_hot, ist_hot, rel_hot, pos_hist, scalars])
+
+
 def build_melodic_vector(
     notes: List[NoteEvent],
     cfg: MelodicFeatureConfig,
@@ -419,21 +504,21 @@ def build_melodic_vector(
         dtype=np.float32,
     )
 
-    vec = np.concatenate(
-        [
-            note_hist,
-            duration_hist_pc,
-            stable_hist,
-            cadence_hist,
-            tonic_profile_rel,
-            trans.reshape(-1).astype(np.float32),
-            step_hist,
-            step_bigram.reshape(-1).astype(np.float32),
-            note_duration_hist,
-            summary,
-        ],
-        axis=0,
-    ).astype(np.float32)
+    parts = [
+        note_hist,
+        duration_hist_pc,
+        stable_hist,
+        cadence_hist,
+        tonic_profile_rel,
+        trans.reshape(-1).astype(np.float32),
+        step_hist,
+        step_bigram.reshape(-1).astype(np.float32),
+        note_duration_hist,
+    ]
+    if cfg.function_features:
+        parts.append(_function_block(notes, intervals, durations, groups, cfg))
+    parts.append(summary)  # keep summary last: the empty-notes path indexes from the end
+    vec = np.concatenate(parts, axis=0).astype(np.float32)
     return np.nan_to_num(vec, nan=0.0, posinf=0.0, neginf=0.0)
 
 
