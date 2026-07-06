@@ -46,9 +46,10 @@ class MelodicFeatureConfig:
     duration_bins: int = 8
     tonic_strategy: str = "vote"  # "pooled": argmax over all notes; "vote": per-segment tonic vote
     # Note-function features (shahed/ist): which degrees carry emphasis and
-    # where phrases resolve, relative to the tonic. These target the modes that
-    # share scale material but differ in note function (Segah/Shur families).
-    function_features: bool = True
+    # where phrases resolve, relative to the tonic. Off by default: the one-hot
+    # form measured 1.6 points BELOW parity on pooled grouped CV (0.526 vs
+    # 0.542, 2026-07-07) — kept opt-in for the soft-profile rework.
+    function_features: bool = False
 
 
 @dataclass

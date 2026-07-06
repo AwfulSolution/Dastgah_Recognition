@@ -27,12 +27,29 @@ moteghayyer), not note *inventory*.
 
 ## Measurement rules (learned the hard way in v3)
 
-- **Group-aware splits**: same-album/performance tracks must never span train/eval;
-  filename-normalized grouping lives in the split builder.
-- **5-fold grouped CV for all headline numbers** — single 86-track test splits swing
-  ±7 points between seeds.
+- **Group-aware splits**: same-album/performance tracks must never span train/eval.
+  Groups come from ID3 album tags with a per-performer merge for multi-CD radif
+  sets (`src/dastgah_v4/grouping.py`).
+- **Pooled grouped 5-fold CV for all headline numbers** (`cv_melodic.py`): every
+  track is predicted exactly once by a model that never saw its group, with a
+  size+class-balanced greedy splitter. Single 86-track test splits swing ±7
+  points between seeds, and album leakage inflated them by ~10-20 points.
 - Feature caches are shared with v3 (`data/cache` symlinks to v3's; per-track note
   caches key on path+mtime+size+config, so identical extraction params cost nothing).
+
+### Honest baseline (pooled grouped CV, 570 tracks, catboost 30s×6)
+
+| config | pooled acc | pooled macro F1 |
+|---|---|---|
+| v3-parity (default) | **0.542** | **0.541** |
+| + one-hot function block (`--function_features`) | 0.526 | 0.527 |
+
+Per-class F1 (parity): Chahargah 0.66, Mahur 0.63, Homayun 0.53, Nava 0.51,
+Shur 0.50, Segah 0.42. The confusion structure is theory-consistent: Shur
+absorbs its family relatives (Mahur/Nava/Segah→Shur), and Chahargah↔Segah
+confuse symmetrically. The leaky pre-v4 numbers (0.59-0.66) measured performer
+memorization as much as dastgah recognition — melodic features leak performer
+identity through tonic conventions and repertoire, not just timbre.
 
 ## Environment
 

@@ -66,8 +66,9 @@ def parse_args() -> argparse.Namespace:
     # "vote" gave the best Homayun F1 and lowest fold variance in 5-fold CV
     # at equal macro F1 (2026-06-11); pooled tonics flip on shahed-heavy tracks.
     p.add_argument("--tonic_strategy", choices=["pooled", "vote"], default="vote")
-    # v4: shahed/ist note-function features; disable to reproduce v3 vectors.
-    p.add_argument("--no_function_features", dest="function_features", action="store_false")
+    # v4: shahed/ist note-function features. Opt-in: the one-hot form measured
+    # below parity on pooled grouped CV; default (off) reproduces v3 vectors.
+    p.add_argument("--function_features", action="store_true")
     return p.parse_args()
 
 
