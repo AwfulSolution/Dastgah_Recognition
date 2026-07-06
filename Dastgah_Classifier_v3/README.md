@@ -39,12 +39,13 @@ python Dastgah_Classifier_v3/train_melodic_model.py \
   --run_dir Dastgah_Classifier_v3/runs/<run_name> \
   --model_type catboost \
   --trim_silence \
-  --num_workers 4 \
+  --num_workers 1 \
+  --model_jobs 1 \
   --num_segments 6 \
   --segment_seconds 30
 ```
 
-Defaults worth knowing: `--hop_length 512` and `--tonic_strategy vote` (both CV-validated, see Results). Feature extraction caches note events per track in `data/cache`, so reruns that only change vector-stage parameters (cadence weights, tonic strategy) take minutes, not hours.
+Defaults worth knowing: `--hop_length 512`, `--tonic_strategy vote`, `--num_workers 1`, and `--model_jobs 1`. Keep those worker/job settings on a laptop unless you are intentionally trading heat for speed. Feature extraction caches note events per track in `data/cache`, so reruns that only change vector-stage parameters (cadence weights, tonic strategy) take minutes, not hours.
 
 Supported `--model_type` values are the same as v2:
 
