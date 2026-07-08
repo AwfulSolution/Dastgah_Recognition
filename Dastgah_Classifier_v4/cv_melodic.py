@@ -48,6 +48,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--tonic_strategy", choices=["pooled", "vote"], default="vote")
     p.add_argument("--function_features", action="store_true")
     p.add_argument("--template_features", action="store_true")
+    p.add_argument("--koron_features", action="store_true")
     p.add_argument("--no_trim_silence", dest="trim_silence", action="store_false")
     # "balanced": greedy size+class-balanced group assignment (default);
     # "sklearn": StratifiedGroupKFold, kept for comparison.
@@ -124,6 +125,7 @@ def main() -> None:
         tonic_strategy=args.tonic_strategy,
         function_features=args.function_features,
         template_features=args.template_features,
+        koron_features=args.koron_features,
     )
     tracks = [Track(path=m["path"], label=m["label"]) for m in manifest]
     l2i = label_to_index()
@@ -169,7 +171,8 @@ def main() -> None:
         "config": {"model_type": args.model_type, "seed": args.seed, "folds": args.folds,
                    "splitter": args.splitter,
                    "function_features": args.function_features,
-                   "template_features": args.template_features, "tonic_strategy": args.tonic_strategy,
+                   "template_features": args.template_features,
+                   "koron_features": args.koron_features, "tonic_strategy": args.tonic_strategy,
                    "num_segments": args.num_segments, "segment_seconds": args.segment_seconds},
         "folds": fold_rows,
         "predictions": [LABELS[p] for p in pooled_pred],

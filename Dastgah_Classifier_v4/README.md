@@ -43,14 +43,19 @@ moteghayyer), not note *inventory*.
 |---|---|---|
 | v3-parity (default) | 0.542 | 0.541 |
 | + one-hot function block (`--function_features`) | 0.526 | 0.527 |
-| + Farhat templates (`--template_features`) | **0.549** | **0.547** |
+| + Farhat templates (`--template_features`) | 0.549 | 0.547 |
 | + templates + function block | 0.549 | 0.547 |
+| **+ koron features (`--koron_features`)** | **0.567** | **0.567** |
+| + koron + templates | 0.563 | 0.559 |
 
-The templates (interval scaffolds from Farhat quantized to quarter-tone bins,
-`src/dastgah_v4/templates.py`) are the first theory feature to land non-negative,
-and the gains sit exactly where their mechanism predicts: the Shur-family cluster
-whose scales differ by quarter-tone placements (Nava +4.5 F1, Homayun +2.1,
-Shur +1.6), at some cost to Chahargah. Small aggregate (+0.7), kept opt-in.
+**Koron features** (cents-level intonation histograms over the neutral 2nd/3rd/6th
+regions against a drift-robust continuous tonic reference) are the clearest win:
++2.5 pooled accuracy with the tightest fold spread (±0.036), driven by Segah +7.0
+F1 (the class they target — its tonic sits on a neutral degree), Mahur +5.4
+(koron-ness ≈ 0 is a clean signature), Homayun +3.6. **Templates** land smaller
+but real gains in the complementary direction (Nava/Shur — the quarter-tone
+2nd/6th scale placements). Their stack recovers Nava/Shur but trades away part
+of the Segah/Mahur gain, netting slightly below koron alone.
 
 Per-class F1 (parity): Chahargah 0.66, Mahur 0.63, Homayun 0.53, Nava 0.51,
 Shur 0.50, Segah 0.42. The confusion structure is theory-consistent: Shur

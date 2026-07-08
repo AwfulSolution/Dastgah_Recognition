@@ -60,6 +60,11 @@ class MelodicFeatureConfig:
     # histogram against each dastgah's theoretical scale (performer-invariant
     # anchors). Opt-in pending CV validation.
     template_features: bool = False
+    # Cents-level koron features: fine (10-cent) intonation histograms over
+    # the theory-critical regions (neutral 2nd, 3rd, 6th) using the continuous
+    # midi_mean of cached notes — quarter-tone bins blur exactly the neutral
+    # intervals that separate the Shur/Segah families. Opt-in.
+    koron_features: bool = False
 
 
 @dataclass
@@ -82,11 +87,28 @@ def template_dim(cfg: MelodicFeatureConfig) -> int:
     return len(_TEMPLATE_LABELS) * 3 if cfg.template_features else 0
 
 
+# (lo_cents, hi_cents, 10-cent bins) for the intonation-critical degree regions.
+_KORON_REGIONS = (
+    (100, 250),  # 2nd: minor ~90-100 / small neutral ~135 / large neutral ~160 / whole tone ~204
+    (250, 450),  # 3rd: minor 300 / neutral ~350 (Segah's home) / major 400
+    (750, 900),  # 6th: Shur 800 vs Nava-Segah-Chahargah ~850 vs Mahur 900
+)
+_KORON_BIN_CENTS = 10
+
+
+def koron_dim(cfg: MelodicFeatureConfig) -> int:
+    if not cfg.koron_features:
+        return 0
+    hist_bins = sum((hi - lo) // _KORON_BIN_CENTS for lo, hi in _KORON_REGIONS)
+    # per region: mass share, centroid, dispersion; plus global koron-ness.
+    return hist_bins + len(_KORON_REGIONS) * 3 + 1
+
+
 def feature_dim(cfg: MelodicFeatureConfig) -> int:
     bins = cfg.bins_per_octave
     step_bins = cfg.step_clip_bins * 2 + 1
     return ((bins * bins) + (bins * 5) + step_bins + (step_bins * step_bins) + cfg.duration_bins
-            + function_dim(cfg) + template_dim(cfg) + 16)
+            + function_dim(cfg) + template_dim(cfg) + koron_dim(cfg) + 16)
 
 
 def cfg_signature(cfg: MelodicFeatureConfig) -> str:
@@ -105,6 +127,8 @@ def cfg_signature(cfg: MelodicFeatureConfig) -> str:
         sig += "-fn1"
     if cfg.template_features:
         sig += "-tmpl1"
+    if cfg.koron_features:
+        sig += "-kor1"
     return sig
 
 
@@ -430,6 +454,61 @@ def _function_block(
     return np.concatenate([shahed_hot, vice_hot, ist_hot, rel_hot, pos_hist, scalars])
 
 
+def _koron_block(
+    notes: List[NoteEvent],
+    tonic: int,
+    cfg: MelodicFeatureConfig,
+) -> np.ndarray:
+    """Fine-intonation features over the neutral-interval regions.
+
+    Uses each note's continuous midi_mean (the 24-bin pc quantization is what
+    blurs korons) against a continuous tonic reference: the duration-weighted
+    circular mean of the notes sitting in the tonic's quarter-tone bin. All
+    positions are cents above that reference, octave-collapsed.
+    """
+    cents = np.array([(n.midi_mean * 100.0) % 1200.0 for n in notes], dtype=np.float64)
+    durs = np.array([n.duration_frames for n in notes], dtype=np.float64)
+    pcs = np.array([n.pc for n in notes], dtype=np.int64)
+
+    tonic_mask = pcs == tonic
+    if tonic_mask.any():
+        ang = cents[tonic_mask] / 1200.0 * 2 * np.pi
+        w = durs[tonic_mask]
+        tonic_cents = (np.arctan2(np.sum(w * np.sin(ang)), np.sum(w * np.cos(ang)))
+                       / (2 * np.pi) * 1200.0) % 1200.0
+    else:
+        tonic_cents = tonic * (1200.0 / cfg.bins_per_octave)
+
+    rel = (cents - tonic_cents) % 1200.0
+    total_mass = durs.sum() + 1e-9
+
+    parts: List[np.ndarray] = []
+    scalars: List[float] = []
+    for lo, hi in _KORON_REGIONS:
+        span = hi - lo
+        n_bins = span // _KORON_BIN_CENTS
+        in_region = (rel >= lo) & (rel < hi)
+        r, w = rel[in_region], durs[in_region]
+        hist = np.zeros(n_bins, dtype=np.float64)
+        if r.size:
+            idx = ((r - lo) // _KORON_BIN_CENTS).astype(np.int64)
+            np.add.at(hist, idx, w)
+        mass = hist.sum()
+        parts.append((hist / (mass + 1e-9)).astype(np.float32))
+        centroid = float(np.sum(r * w) / mass - lo) / span if mass > 0 else 0.5
+        dispersion = float(np.sqrt(np.sum(w * (r - np.sum(r * w) / mass) ** 2) / mass)) / span if mass > 0 else 0.0
+        scalars.extend([float(mass / total_mass), centroid, dispersion])
+
+    # Global koron-ness: duration share sitting near odd quarter-tone offsets
+    # (30-70 cents past a semitone). Mahur should be near zero; the Shur and
+    # Segah families substantially above.
+    offset = rel % 100.0
+    koronness = float(np.sum(durs[(offset >= 30.0) & (offset < 70.0)]) / total_mass)
+    scalars.append(koronness)
+
+    return np.concatenate(parts + [np.array(scalars, dtype=np.float32)])
+
+
 def build_melodic_vector(
     notes: List[NoteEvent],
     cfg: MelodicFeatureConfig,
@@ -538,6 +617,8 @@ def build_melodic_vector(
         parts.append(_function_block(notes, intervals, durations, groups, cfg))
     if cfg.template_features:
         parts.append(template_features(duration_hist_pc, _TEMPLATE_MATRIX))
+    if cfg.koron_features:
+        parts.append(_koron_block(notes, tonic, cfg))
     parts.append(summary)  # keep summary last: the empty-notes path indexes from the end
     vec = np.concatenate(parts, axis=0).astype(np.float32)
     return np.nan_to_num(vec, nan=0.0, posinf=0.0, neginf=0.0)

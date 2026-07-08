@@ -71,6 +71,8 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--function_features", action="store_true")
     # v4: Farhat interval templates (cosine alignment to theoretical scales).
     p.add_argument("--template_features", action="store_true")
+    # v4: cents-level koron intonation histograms (neutral 2nd/3rd/6th regions).
+    p.add_argument("--koron_features", action="store_true")
     return p.parse_args()
 
 
@@ -138,6 +140,7 @@ def main() -> None:
         tonic_strategy=args.tonic_strategy,
         function_features=args.function_features,
         template_features=args.template_features,
+        koron_features=args.koron_features,
     )
 
     l2i = label_to_index()
