@@ -41,8 +41,16 @@ moteghayyer), not note *inventory*.
 
 | config | pooled acc | pooled macro F1 |
 |---|---|---|
-| v3-parity (default) | **0.542** | **0.541** |
+| v3-parity (default) | 0.542 | 0.541 |
 | + one-hot function block (`--function_features`) | 0.526 | 0.527 |
+| + Farhat templates (`--template_features`) | **0.549** | **0.547** |
+| + templates + function block | 0.549 | 0.547 |
+
+The templates (interval scaffolds from Farhat quantized to quarter-tone bins,
+`src/dastgah_v4/templates.py`) are the first theory feature to land non-negative,
+and the gains sit exactly where their mechanism predicts: the Shur-family cluster
+whose scales differ by quarter-tone placements (Nava +4.5 F1, Homayun +2.1,
+Shur +1.6), at some cost to Chahargah. Small aggregate (+0.7), kept opt-in.
 
 Per-class F1 (parity): Chahargah 0.66, Mahur 0.63, Homayun 0.53, Nava 0.51,
 Shur 0.50, Segah 0.42. The confusion structure is theory-consistent: Shur

@@ -19,6 +19,12 @@ from .cache import (
     save_cached_track_notes,
 )
 from .data import Track
+from .templates import DASTGAH_DEGREES_CENTS, template_features, template_matrix
+
+# Fixed alphabetical order == LABELS order; keeps the template block decoupled
+# from the package label list (no import cycle) and stable across tracks.
+_TEMPLATE_LABELS = sorted(DASTGAH_DEGREES_CENTS)
+_TEMPLATE_MATRIX = template_matrix(_TEMPLATE_LABELS)
 
 
 @dataclass
@@ -50,6 +56,10 @@ class MelodicFeatureConfig:
     # form measured 1.6 points BELOW parity on pooled grouped CV (0.526 vs
     # 0.542, 2026-07-07) — kept opt-in for the soft-profile rework.
     function_features: bool = False
+    # Farhat interval templates: cosine alignment of the tonic-relative PC
+    # histogram against each dastgah's theoretical scale (performer-invariant
+    # anchors). Opt-in pending CV validation.
+    template_features: bool = False
 
 
 @dataclass
@@ -67,10 +77,16 @@ def function_dim(cfg: MelodicFeatureConfig) -> int:
     return cfg.bins_per_octave * 5 + 6 if cfg.function_features else 0
 
 
+def template_dim(cfg: MelodicFeatureConfig) -> int:
+    # per dastgah: cos@tonic, best cos over rotations, best-rot-is-tonic flag.
+    return len(_TEMPLATE_LABELS) * 3 if cfg.template_features else 0
+
+
 def feature_dim(cfg: MelodicFeatureConfig) -> int:
     bins = cfg.bins_per_octave
     step_bins = cfg.step_clip_bins * 2 + 1
-    return (bins * bins) + (bins * 5) + step_bins + (step_bins * step_bins) + cfg.duration_bins + function_dim(cfg) + 16
+    return ((bins * bins) + (bins * 5) + step_bins + (step_bins * step_bins) + cfg.duration_bins
+            + function_dim(cfg) + template_dim(cfg) + 16)
 
 
 def cfg_signature(cfg: MelodicFeatureConfig) -> str:
@@ -87,6 +103,8 @@ def cfg_signature(cfg: MelodicFeatureConfig) -> str:
         sig += f"-ts{cfg.tonic_strategy}"
     if cfg.function_features:
         sig += "-fn1"
+    if cfg.template_features:
+        sig += "-tmpl1"
     return sig
 
 
@@ -518,6 +536,8 @@ def build_melodic_vector(
     ]
     if cfg.function_features:
         parts.append(_function_block(notes, intervals, durations, groups, cfg))
+    if cfg.template_features:
+        parts.append(template_features(duration_hist_pc, _TEMPLATE_MATRIX))
     parts.append(summary)  # keep summary last: the empty-notes path indexes from the end
     vec = np.concatenate(parts, axis=0).astype(np.float32)
     return np.nan_to_num(vec, nan=0.0, posinf=0.0, neginf=0.0)

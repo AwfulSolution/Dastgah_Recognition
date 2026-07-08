@@ -69,6 +69,8 @@ def parse_args() -> argparse.Namespace:
     # v4: shahed/ist note-function features. Opt-in: the one-hot form measured
     # below parity on pooled grouped CV; default (off) reproduces v3 vectors.
     p.add_argument("--function_features", action="store_true")
+    # v4: Farhat interval templates (cosine alignment to theoretical scales).
+    p.add_argument("--template_features", action="store_true")
     return p.parse_args()
 
 
@@ -135,6 +137,7 @@ def main() -> None:
         duration_bins=args.duration_bins,
         tonic_strategy=args.tonic_strategy,
         function_features=args.function_features,
+        template_features=args.template_features,
     )
 
     l2i = label_to_index()
