@@ -702,6 +702,46 @@ def extract_track_feature(track_path: str, cfg: MelodicFeatureConfig, mode: str,
     return out
 
 
+def extract_track_segment_features(
+    track_path: str, cfg: MelodicFeatureConfig, mode: str, seed: int, cache_dir: str
+) -> np.ndarray:
+    """Per-segment feature vectors, (n_nonempty_segments, feature_dim).
+
+    Segments share the track-level tonic (the per-segment vote), so a segment
+    that modulates away from the home mode reads as 'wrong degrees relative to
+    home' — producing the low classifier confidence that abstention voting
+    exploits — rather than being re-anchored to its own local tonic. Empty
+    segments (no notes) are dropped.
+    """
+    sig = cfg_signature(cfg)
+    suffix = f"segtrack-{mode}-seed{seed}"
+    cached = load_cached_track_features(cache_dir, track_path, sig, suffix)
+    if cached is not None:
+        return cached
+
+    notes_sig = notes_signature(cfg)
+    notes_suffix = f"notes-{mode}-seed{seed}"
+    arrays = load_cached_track_notes(cache_dir, track_path, notes_sig, notes_suffix)
+    if arrays is not None:
+        segment_note_lists, metas = _arrays_to_notes(arrays)
+    else:
+        segment_note_lists, metas = _compute_track_notes(track_path, cfg, mode, seed)
+        save_cached_track_notes(cache_dir, track_path, notes_sig, notes_suffix, _notes_to_arrays(segment_note_lists, metas))
+
+    tonic_override = None
+    if cfg.tonic_strategy == "vote":
+        tonic_override = vote_track_tonic(segment_note_lists, cfg)
+
+    vecs = [
+        build_melodic_vector(seg_notes, cfg, [meta], tonic_override=tonic_override)
+        for seg_notes, meta in zip(segment_note_lists, metas)
+        if seg_notes
+    ]
+    out = np.vstack(vecs) if vecs else np.zeros((0, feature_dim(cfg)), dtype=np.float32)
+    save_cached_track_features(cache_dir, track_path, sig, suffix, out)
+    return out
+
+
 def _feature_job(job: Tuple[int, str, MelodicFeatureConfig, str, int, str]) -> Tuple[int, np.ndarray]:
     idx, track_path, cfg, mode, seed, cache_dir = job
     feat = extract_track_feature(track_path, cfg=cfg, mode=mode, seed=seed, cache_dir=cache_dir)
