@@ -1,6 +1,7 @@
 import hashlib
 import multiprocessing
 import os
+import time
 import warnings
 from concurrent.futures import ProcessPoolExecutor, as_completed
 from dataclasses import dataclass
@@ -630,6 +631,14 @@ def _stable_track_seed(track_path: str, seed: int) -> int:
 
 
 def _compute_track_notes(track_path: str, cfg: MelodicFeatureConfig, mode: str, seed: int) -> Tuple[List[List[NoteEvent]], List[Dict[str, float]]]:
+    # A security scanner on the training machine holds files for minutes at a
+    # time (quarantine-and-restore). Wait out short holds before conceding
+    # zero features, so a held track degrades a run only if it stays held.
+    for wait_s in (10, 30, 60):
+        if os.path.exists(track_path):
+            break
+        warnings.warn(f"{track_path} missing (scanner hold?); waiting {wait_s}s", RuntimeWarning)
+        time.sleep(wait_s)
     try:
         duration = float(librosa.get_duration(path=track_path))
     except Exception as exc:
