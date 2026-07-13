@@ -48,6 +48,16 @@ moteghayyer), not note *inventory*.
 | **+ koron features (`--koron_features`)** | **0.567** | **0.567** |
 | + koron + templates | 0.563 | 0.559 |
 
+**Segment abstention voting** (`cv_segment_vote.py`: per-segment classification,
+probability-averaged track votes, confidence-threshold abstention) measured
+**negative** on clean notes: 0.49 pooled acc at every tau vs 0.52 whole-track,
+with abstention thresholds flat (±0.4 points). Two lessons: 30-second segments
+are too sparse an observation to beat whole-track histograms, and modulating
+gushehs fail *confidently* (a Hesar passage votes Shur with conviction), so
+confidence-gated abstention cannot rescue them. Kept for reference; the
+modulation problem needs a different lever (e.g. explicitly modeling gusheh
+structure, not filtering by confidence).
+
 **Koron features** (cents-level intonation histograms over the neutral 2nd/3rd/6th
 regions against a drift-robust continuous tonic reference) are the clearest win:
 +2.5 pooled accuracy with the tightest fold spread (±0.036), driven by Segah +7.0
