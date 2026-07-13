@@ -100,8 +100,8 @@ class V3MelodicFeatureTests(unittest.TestCase):
         self.assertIsNone(vote_track_tonic([drone], cfg))
 
     def test_pooled_cfg_signature_has_no_tonic_strategy_marker(self) -> None:
-        self.assertNotIn("-ts", cfg_signature(MelodicFeatureConfig()))
-        self.assertTrue(cfg_signature(MelodicFeatureConfig(tonic_strategy="vote")).endswith("-tsvote"))
+        self.assertNotIn("-ts", cfg_signature(MelodicFeatureConfig(tonic_strategy="pooled")))
+        self.assertTrue(cfg_signature(MelodicFeatureConfig()).endswith("-tsvote"))
 
 
 if __name__ == "__main__":
