@@ -101,6 +101,58 @@ confuse symmetrically. The leaky pre-v4 numbers (0.59-0.66) measured performer
 memorization as much as dastgah recognition — melodic features leak performer
 identity through tonic conventions and repertoire, not just timbre.
 
+### External validation (KDC)
+
+`fetch_kdc.py` downloads the KUG Dastgāhi Corpus and `eval_external.py` scores
+a model trained on the whole local corpus against it. KDC's performers appear
+nowhere in training, so this asks the question grouped CV can only approximate.
+
+| | pooled acc | macro F1 |
+|---|---|---|
+| grouped CV, local corpus (570 tracks) | 0.546 | 0.549 |
+| **external, KDC (92 recordings)** | **0.522** | 0.508 |
+
+A 2.4-point drop across a different institution, different performers,
+different instruments and much shorter pieces. **The grouped CV is not
+optimistic** — which is the main thing this result establishes, and it is
+what justifies trusting every other number in this README.
+
+Two caveats. KDC darāmads are short (median 60s, none over 154s) and solo,
+where local tracks are multi-minute ensemble performances, so the comparison
+conflates unseen performers with a format shift. And per-performer accuracy
+ranges from 16/24 to 10/29, a spread as large as most effects measured here.
+
+Per class, Mahur reaches 0.875 F1 (14/15) while Homayun falls to 0.286 (3/13).
+Mahur is the dastgah defined by the *absence* of neutral intervals, which is
+exactly the koron block's most performer-independent signal.
+
+### Ensemble attempt (negative)
+
+`stack_ensemble.py` fits base models on different representations of the same
+audio, takes out-of-fold probabilities over the grouped folds, fits a decider
+on those, and scores the stack on KDC. Both non-melodic representations failed:
+
+| base (external, n=92) | acc | macro F1 |
+|---|---|---|
+| melodic + koron | **0.522** | 0.508 |
+| pooled timbre statistics | 0.163 | 0.124 |
+| mean of bases | 0.489 | 0.476 |
+| learned decider | 0.467 | 0.445 |
+
+The timbre base scores **below the 0.167 chance line** both out-of-fold (0.158)
+and externally (0.163) — on folds whose performers differ sharply from
+training it is reliably *worse* than guessing, because spectral envelope
+identifies the recording rather than the mode. A log-mel CNN
+(`src/dastgah_v4/spectral.py`) reaches the same conclusion from the opposite
+end of the capacity range: it fits training segments to 0.70 while sitting at
+0.25 on held-out groups. Both combination strategies land below the single
+melodic model, the learned decider worst, which is what stacking does when a
+base contributes variance instead of signal.
+
+Read together with the KDC result, this says the binding constraint is the
+corpus rather than the model: ~60% of the 570 tracks are four performers'
+radif sets, and five model families have now failed against that ceiling.
+
 ## Environment
 
 Use a virtualenv with numpy 1.26.x on OpenBLAS (Python 3.11 tested). On Apple
