@@ -72,7 +72,7 @@ def parse_args() -> argparse.Namespace:
     # v4: Farhat interval templates (cosine alignment to theoretical scales).
     p.add_argument("--template_features", action="store_true")
     # v4: cents-level koron intonation histograms (neutral 2nd/3rd/6th regions).
-    p.add_argument("--koron_features", action="store_true")
+    p.add_argument("--no_koron_features", dest="koron_features", action="store_false")
     return p.parse_args()
 
 

@@ -50,7 +50,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--tonic_strategy", choices=["pooled", "vote"], default="vote")
     p.add_argument("--function_features", action="store_true")
     p.add_argument("--template_features", action="store_true")
-    p.add_argument("--koron_features", action="store_true")
+    p.add_argument("--no_koron_features", dest="koron_features", action="store_false")
     p.add_argument("--no_trim_silence", dest="trim_silence", action="store_false")
     return p.parse_args()
 

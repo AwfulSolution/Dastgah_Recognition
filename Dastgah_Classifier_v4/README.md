@@ -2,28 +2,32 @@
 
 v4 starts from the v3 phrase-aware melodic pipeline (pyin note events, tonic-relative
 pitch-class/interval/duration histograms, cadence weighting, 30s×6 segments, CatBoost)
-and adds what v3 lacked: **explicit Persian music theory**. v3's honest baseline on the
-570-track dataset is test acc ~0.59–0.66 across seeds (macro F1 ~0.59–0.64), and its
-errors are exactly the ones scale-content models make: Segah↔Shur, weak Homayun,
-unstable Nava. Those dastgahs differ by note *function* (shahed, ist, forud,
-moteghayyer), not note *inventory*.
+and adds what v3 lacked: **explicit Persian music theory**. Measured without album
+or performer leakage (see Measurement rules), that v3 pipeline scores 0.523 pooled
+accuracy on the 570-track dataset, and its errors are the ones scale-content models
+make: Segah↔Shur, weak Homayun, unstable Nava. Those dastgahs differ by note
+*function* (shahed, ist, forud, moteghayyer) and by the exact placement of their
+neutral intervals, not by note *inventory*.
 
-## Design goals
+## Design goals, and what came of them
 
-1. **Ist/forud-guided tonic detection** — weight tonic candidates by phrase-final,
-   descending-approach evidence instead of raw note frequency. Gated on the tonic
-   audit in `analysis/` showing tonic errors matter (they very likely do; every
-   downstream feature is tonic-relative).
-2. **Shahed features** — emphasis-weighted (duration × energy × phrase position)
-   pitch-class profile, plus the tonic→shahed interval as a near-categorical feature.
-   The main theory lever for Segah-vs-Shur.
-3. **Farhat interval templates** — per-dastgah expected pitch-class profiles built
-   from published cents values (Farhat, *The Dastgah Concept in Persian Music*);
-   correlations fed as features / priors.
-4. **Neutral-interval resolution** — cents-level histograms around the koron region
-   (~135–160¢) where 24-TET bins blur the Shur-family distinctions.
-5. **Segment voting with abstention** — modulating gushehs (Homayun's Hesar problem)
-   abstain rather than poison the track vote.
+1. **Ist/forud-guided tonic detection** — *dropped*. The tonic audit
+   (`analysis/tonic_audit.py`) compared three independent tonic estimators on
+   correct vs misclassified tracks: they agree on ~75% of the misclassified ones.
+   The model knows where home is and still picks the wrong dastgah, so tonic
+   detection is not the binding constraint.
+2. **Shahed features** — *negative in one-hot form* (`--function_features`).
+   CatBoost gives the block importance proportional to its dimension count, i.e.
+   it is redundant with the existing histograms. Only the phrase-position profile
+   inside it earned any importance; a soft-profile rework remains open.
+3. **Farhat interval templates** — *refuted* (`--template_features`). See below.
+4. **Neutral-interval resolution** — **confirmed, now default.** The koron block
+   is the one theory feature that survives replication.
+5. **Segment voting with abstention** — *negative* (`cv_segment_vote.py`). See below.
+
+The pattern across five attempts: what worked measures *intonation* at a
+resolution the baseline histograms cannot represent. What failed re-encoded
+information CatBoost could already extract from the existing features.
 
 ## Measurement rules (learned the hard way in v3)
 
@@ -34,19 +38,30 @@ moteghayyer), not note *inventory*.
   track is predicted exactly once by a model that never saw its group, with a
   size+class-balanced greedy splitter. Single 86-track test splits swing ±7
   points between seeds, and album leakage inflated them by ~10-20 points.
-- Feature caches are shared with v3 (`data/cache` symlinks to v3's; per-track note
-  caches key on path+mtime+size+config, so identical extraction params cost nothing).
+- Feature caches are shared with v3 (`data/cache` symlinks to v3's). Cache entries
+  key on track path + `CORPUS_VERSION` + config signature — deliberately *not* on
+  file metadata or content hashes, so that tooling which rewrites audio files in
+  place (tag rewrites, timestamp churn) cannot silently invalidate hours of pyin
+  extraction. Bump `CORPUS_VERSION` in `src/dastgah_v4/cache.py` when audio at an
+  existing path is genuinely replaced; adding new files needs no bump.
 
 ### Honest baseline (pooled grouped CV, 570 tracks, catboost 30s×6)
 
+All numbers below are measured on the current feature caches. An earlier table
+reported figures ~2 points higher across the board; those came from note caches
+computed under a numpy build that has since been replaced (see Environment), and
+are retired — do not compare against them.
+
 | config | pooled acc | pooled macro F1 |
 |---|---|---|
-| v3-parity (default) | 0.542 | 0.541 |
-| + one-hot function block (`--function_features`) | 0.526 | 0.527 |
-| + Farhat templates (`--template_features`) | 0.549 | 0.547 |
-| + templates + function block | 0.549 | 0.547 |
-| **+ koron features (`--koron_features`)** | **0.567** | **0.567** |
-| + koron + templates | 0.563 | 0.559 |
+| v3-parity (`--no_koron_features`) | 0.523 | 0.524 |
+| + one-hot function block (`--function_features`) | 0.526\* | 0.527\* |
+| + Farhat templates (`--template_features`) | 0.516 | 0.518 |
+| **+ koron features (default)** | **0.546** | **0.549** |
+| + koron + templates | 0.544 | 0.544 |
+
+\* function block measured on retired caches (0.526 vs 0.542 parity then); its
+sign is unlikely to flip but the figure is not directly comparable.
 
 **Segment abstention voting** (`cv_segment_vote.py`: per-segment classification,
 probability-averaged track votes, confidence-threshold abstention) measured
@@ -59,16 +74,28 @@ modulation problem needs a different lever (e.g. explicitly modeling gusheh
 structure, not filtering by confidence).
 
 **Koron features** (cents-level intonation histograms over the neutral 2nd/3rd/6th
-regions against a drift-robust continuous tonic reference) are the clearest win:
-+2.5 pooled accuracy with the tightest fold spread (±0.036), driven by Segah +7.0
-F1 (the class they target — its tonic sits on a neutral degree), Mahur +5.4
-(koron-ness ≈ 0 is a clean signature), Homayun +3.6. **Templates** land smaller
-but real gains in the complementary direction (Nava/Shur — the quarter-tone
-2nd/6th scale placements). Their stack recovers Nava/Shur but trades away part
-of the Segah/Mahur gain, netting slightly below koron alone.
+regions against a drift-robust continuous tonic reference) are the one theory
+feature that holds up, and are on by default. +2.3 pooled accuracy over parity,
+concentrated where the mechanism predicts: **Segah +8.5 F1** — the class whose
+own tonic sits on a neutral degree, and the weakest class under every other
+configuration — plus Mahur +4.5 (near-zero koron-ness is itself a clean Mahur
+signature) and Chahargah +3.6, against Nava −1.6. This result was measured twice
+on independently recomputed features and reproduced in both magnitude and
+per-class shape.
 
-Per-class F1 (parity): Chahargah 0.66, Mahur 0.63, Homayun 0.53, Nava 0.51,
-Shur 0.50, Segah 0.42. The confusion structure is theory-consistent: Shur
+**Farhat templates are refuted.** They score below parity alone (0.516), and
+adding them on top of koron costs 0.2 — they carry nothing koron does not
+already capture, which is unsurprising once stated plainly: both features ask
+where the neutral degrees actually sit, and koron asks at 10-cent rather than
+50-cent resolution. An earlier measurement showed templates +0.7 with gains
+across the Shur family (Nava/Homayun/Shur), read at the time as theory
+confirming itself. On recomputed features all three of those classes move
+*down* and the only gain lands on Segah. That per-class story was noise fitted
+to ±7-point fold variance; the module stays in the tree as a negative result,
+not a building block.
+
+Per-class F1 (parity): Chahargah 0.64, Mahur 0.55, Shur 0.52, Homayun 0.51,
+Nava 0.49, Segah 0.44. The confusion structure is theory-consistent: Shur
 absorbs its family relatives (Mahur/Nava/Segah→Shur), and Chahargah↔Segah
 confuse symmetrically. The leaky pre-v4 numbers (0.59-0.66) measured performer
 memorization as much as dastgah recognition — melodic features leak performer
@@ -83,7 +110,8 @@ can segfault inside `librosa.pyin` during feature extraction — check
 
 ## Training
 
-Same CLI as v3:
+Same CLI as v3; koron features are on by default, so this trains the best
+measured configuration:
 
 ```bash
 python Dastgah_Classifier_v4/train_melodic_model.py \
@@ -93,3 +121,17 @@ python Dastgah_Classifier_v4/train_melodic_model.py \
   --trim_silence \
   --num_segments 6 --segment_seconds 30
 ```
+
+Add `--no_koron_features` to reproduce the v3-parity baseline.
+
+## Evaluation
+
+Headline numbers come from the grouped CV harness, never from a single split:
+
+```bash
+python Dastgah_Classifier_v4/cv_melodic.py --out Dastgah_Classifier_v4/runs/cv_default.json
+```
+
+The first run pays pyin extraction for the whole corpus (hours); afterwards the
+note cache makes a full re-evaluation a matter of rebuilding feature vectors and
+refitting (minutes).
