@@ -15,26 +15,25 @@ more the test material differs from the notated radif the templates come from,
 the more the accuracy falls.
 
 **On real recordings (the number that matters).** 340 commercial performances,
-~24 hours, six dastgahs, supplied as a folder-per-class archive
-(`python scripts/evaluate_archive.py <dir>`). The templates have never seen this
-audio, so it is held out by construction:
+~24 hours, six dastgahs, supplied as a folder-per-class archive. Measured on
+whole recordings, exactly as the library analyses them
+(`python scripts/evaluate_archive.py <dir> --seconds 0`). The templates have
+never seen this audio, so it is held out by construction:
 
 | Metric | Result |
 | --- | --- |
-| Closed-set accuracy (6 classes present) | **67.1%** (chance 16.7%) |
-| Open-set accuracy (all 13 classes) | **56.5%** (chance 7.7%) |
-| Mode family | **80.6%** (chance 25%) |
-| Top-3 | 86.5% |
-| Mean rank of the true mode | 1.99 of 13 |
+| Closed-set accuracy (6 classes present) | **67.4%** (chance 16.7%) |
+| Open-set accuracy (all 13 classes) | **57.1%** (chance 7.7%) |
+| Mode family | **81.2%** (chance 25%) |
+| Top-3 | 88.2% |
+| Mean rank of the true mode | 1.88 of 13 |
 
-Per-class: Māhūr 93.9%, Homāyūn 91.8%, Chahārgāh 81.4%, Segāh 79.2%, Navā 66.1%,
-Shūr 14.1%.
+Per-class: Māhūr 97.0%, Chahārgāh 86.0%, Segāh 81.2%, Homāyūn 79.6%, Navā 71.4%,
+Shūr 12.8%.
 
-These come from 90-second excerpts and so **understate** the library, which reads
-whole recordings: on a 54-recording subset, whole-file analysis scored 87.0% at
-family level against 79.6% for the same recordings excerpted. Analysing the whole
-file is the best configuration measured, and end-weighting it makes things worse
-— see [docs/data-notes.md](docs/data-notes.md).
+Ninety-second excerpts taken from the end of each recording score within a point
+of this on every metric and run about ten times faster, which is why the
+evaluator defaults to them.
 
 **On the Karimi radif.** 144 IRMA pitch contours, 4.6 hours, scored against
 templates built from the notated Mirza Abdollah radif — a different tradition and
@@ -138,7 +137,7 @@ puts Homāyūn alongside Māhūr, which no theorist would.
 
 | Evaluation | Exact mode | Family |
 | --- | --- | --- |
-| Real recordings (archive) | 56.5% | **80.6%** |
+| Real recordings (archive) | 57.1% | **81.2%** |
 | Karimi radif (IRMA) | 40.3% | **78.5%** |
 
 ## Install

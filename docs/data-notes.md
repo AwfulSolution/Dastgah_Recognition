@@ -414,3 +414,33 @@ What would change this is more recordings per gusheh, not a better method — th
 same conclusion the within-family work reached about performers. Until then
 gusheh identification stays notation-based, at 25% top-1 and 48% top-3 against
 4% and 13% for guessing.
+
+### Settled at full scale: the excerpt gap was noise
+
+The section above reported, from 54 recordings, that whole-file analysis beat
+90-second end excerpts by about seven points of family accuracy, and inferred
+that the headline figures understated the library. **Measured on all 340, that
+inference was wrong.**
+
+| Metric | 90s from the end | Whole file | Difference |
+| --- | --- | --- | --- |
+| Open-set (13 classes) | 56.5% | 57.1% | +0.6 |
+| Closed-set (6 classes) | 67.1% | 67.4% | +0.3 |
+| Mode family | 80.6% | 81.2% | +0.6 |
+| Top-3 | 86.5% | 88.2% | +1.7 |
+| Mean rank | 1.99 | 1.88 | — |
+
+Whole-file is better, but by well under a point on the headline metrics rather
+than by seven. Seven points across 54 recordings is roughly four files, which is
+what a difference of that size meant there.
+
+The useful conclusion is the reverse of the earlier one: **a 90-second excerpt
+from the end is an excellent proxy for the whole recording**, costing almost
+nothing while running about ten times faster. The README now quotes whole-file
+figures because that is what the library does, and the evaluator keeps end
+excerpts as its default because they are cheap and faithful.
+
+Per-class, whole-file against end-excerpt, the differences do not point one way:
+Navā gains (66.1% to 71.4%) while Homāyūn loses (91.8% to 79.6%). Shūr sits at
+12.8%, between the middle-excerpt 9.0% and end-excerpt 14.1%, and the
+within-family ceiling is unmoved.
