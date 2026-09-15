@@ -6,6 +6,7 @@ import DegreeGrid from "./components/DegreeGrid";
 import SegmentTimeline from "./components/SegmentTimeline";
 import GushehTimeline from "./components/GushehTimeline";
 import ExportBar from "./components/ExportBar";
+import WaveformScrubber from "./components/WaveformScrubber";
 import { analyzeFile, ApiError } from "./lib/api";
 import type { AnalysisResult } from "./lib/types";
 
@@ -13,12 +14,12 @@ export default function App() {
   const [result, setResult] = useState<AnalysisResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [filename, setFilename] = useState<string>();
+  const [audio, setAudio] = useState<File>();
 
   const handleFile = useCallback(async (file: File) => {
     setBusy(true);
     setError(null);
-    setFilename(file.name);
+    setAudio(file);
     try {
       setResult(await analyzeFile(file));
     } catch (caught) {
@@ -73,7 +74,7 @@ export default function App() {
         </section>
 
         <div className="grid gap-5 lg:grid-cols-2">
-          <Dropzone onFile={handleFile} busy={busy} filename={filename} />
+          <Dropzone onFile={handleFile} busy={busy} filename={audio?.name} />
 
           <section className="panel p-5">
             <p className="label-mono mb-2 text-tertiary">Interpreting the output</p>
@@ -113,6 +114,11 @@ export default function App() {
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
             <ClassificationPanel result={result} />
             <ProbabilityLedger result={result} />
+            {audio && (
+              <div className="lg:col-span-2">
+                <WaveformScrubber file={audio} result={result} />
+              </div>
+            )}
             <div className="lg:col-span-2">
               <DegreeGrid result={result} />
             </div>

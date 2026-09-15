@@ -148,6 +148,13 @@ uv venv && uv pip install -e ".[api,dev]"
 
 ## Use
 
+The web UI shows the classification, the modal probability ledger grouped by
+family, the 24 quarter-tone scale degrees, a modal timeline, gusheh shortlists,
+and a waveform you can play back — the detected mode and gusheh update as the
+playhead crosses each segment, so a claimed modulation can be listened to rather
+than taken on trust. Results export as JSON or as MusicXML with koron and sori
+notated.
+
 ```bash
 # command line
 dastgah recording.wav
