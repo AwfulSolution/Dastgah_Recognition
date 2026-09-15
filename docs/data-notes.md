@@ -396,7 +396,53 @@ whole-file run over all 340 recordings would settle the margin but costs roughly
 three hours of pYIN; the subset is enough to establish that no code change is
 warranted.
 
-## Gusheh templates from audio: not possible with this data
+## Gusheh templates from audio: tested, and worse than notation
+
+**Superseded note.** This section first concluded the experiment was impossible.
+That was judged on IRMA alone and was wrong: the archive's filenames name the
+gusheh (*Mokhalef*, *Bidād*, *Razavi*, *Zābol*, *Hesār*), and 146 of its 340
+recordings match a corpus gusheh. Pooled with IRMA that gives 237 labelled
+recordings over 132 gushehs, of which **55 have two or more examples covering 160
+recordings** — against 8 gushehs and 19 recordings from IRMA alone. The original
+reasoning is kept below.
+
+Because 47 of those gushehs have examples in *both* sources, the experiment needs
+no leave-one-out: templates were built from the archive and tested on IRMA
+contours — different tradition, different recordings, different performers.
+Candidates remained the mode's full gusheh list from notation, with audio
+substituted only where available, so the audio condition was never scored against
+a smaller candidate set.
+
+| Gusheh templates | top-1 | top-3 | mean rank |
+| --- | --- | --- | --- |
+| **notation only (current)** | **25.3%** | **42.9%** | **7.9** |
+| blend 30% audio | 23.1% | 40.7% | 8.4 |
+| blend 50% audio | 20.9% | 34.1% | 9.3 |
+| blend 70% audio | 19.8% | 31.9% | 10.0 |
+| audio only where available | 22.0% | 30.8% | 10.0 |
+
+Restricted to the 58 test items that have an archive template, the same ordering
+holds (20.7% down to 17.2%). Degradation is monotonic in the mixing weight, so
+this is a real effect rather than noise.
+
+**The likely cause is that the labels are track-level while gushehs are sections
+within a track.** A three-minute commercial recording titled *Razavi* is not
+three minutes of Razavi: it opens with a darāmad, passes through the named
+gusheh, and usually closes with a forud. Every audio template is therefore
+blended with its neighbours, while a notated gusheh has exact boundaries. This is
+also why IRMA serves well as a *test* set — its contours are per-gusheh
+extractions rather than whole tracks.
+
+What would work is per-gusheh segmented audio, which is a annotation problem
+rather than a volume problem. More whole tracks will not help; the same 146
+recordings cut at gusheh boundaries very likely would.
+
+Gusheh identification therefore stays notation-based, at 25% top-1 and 43% top-3
+against 4% and 13% for guessing.
+
+### Original note, written before the archive labels were considered
+
+
 
 Gusheh templates are built from notation, and the obvious improvement is to build
 them from audio instead — the same move that took mode accuracy from 18.8% to
