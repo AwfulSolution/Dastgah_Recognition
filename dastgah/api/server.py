@@ -11,11 +11,15 @@ import tempfile
 import warnings
 from pathlib import Path
 
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, File, HTTPException, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from starlette.concurrency import run_in_threadpool
 
-from dastgah.core.analyze import DEFAULT_TEMPLATE_PATH, analyze
+from dastgah.core.analyze import DEFAULT_GUSHEH_PATH, DEFAULT_TEMPLATE_PATH, analyze
+from dastgah.core.musicxml import scale_to_musicxml
+from dastgah.radif.gusheh import load_gusheh_templates
 from dastgah.radif.templates import load_templates
 from dastgah.theory import MODAL_CLASSES
 
@@ -26,10 +30,20 @@ MAX_UPLOAD_BYTES = 100 * 1024 * 1024
 
 SUPPORTED_SUFFIXES = {".wav", ".flac", ".aiff", ".aif", ".mp3", ".m4a", ".ogg", ".opus"}
 
+@asynccontextmanager
+async def lifespan(_: FastAPI):
+    """Load templates once at startup so the first upload is not slower."""
+    warnings.filterwarnings("ignore", category=RuntimeWarning)
+    templates()
+    gusheh_templates()
+    yield
+
+
 app = FastAPI(
     title="Dastgah Classifier",
     description="Modal classification of Persian classical music.",
     version="0.1.0",
+    lifespan=lifespan,
 )
 
 app.add_middleware(
@@ -40,6 +54,7 @@ app.add_middleware(
 )
 
 _templates = None
+_gushehs = None
 
 
 def templates():
@@ -49,10 +64,11 @@ def templates():
     return _templates
 
 
-@app.on_event("startup")
-def _warm() -> None:
-    warnings.filterwarnings("ignore", category=RuntimeWarning)
-    templates()
+def gusheh_templates():
+    global _gushehs
+    if _gushehs is None:
+        _gushehs = load_gusheh_templates(DEFAULT_GUSHEH_PATH)
+    return _gushehs
 
 
 @app.get("/api/health")
@@ -108,7 +124,10 @@ async def analyze_upload(file: UploadFile = File(...)) -> dict:
         handle.flush()
         try:
             result = await run_in_threadpool(
-                analyze, Path(handle.name), templates=templates()
+                analyze,
+                Path(handle.name),
+                templates=templates(),
+                gusheh_templates=gusheh_templates(),
             )
         except ValueError as exc:
             # Report the name the user uploaded, not the temporary file's.
@@ -120,4 +139,7 @@ async def analyze_upload(file: UploadFile = File(...)) -> dict:
 
     payload = result.to_dict()
     payload["source"] = file.filename
+    # Served alongside the analysis so the front end can offer a download
+    # without re-uploading the audio; a scale is only a couple of kilobytes.
+    payload["musicxml"] = scale_to_musicxml(result)
     return payload

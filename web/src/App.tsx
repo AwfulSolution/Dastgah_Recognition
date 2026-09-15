@@ -5,6 +5,7 @@ import ProbabilityLedger from "./components/ProbabilityLedger";
 import DegreeGrid from "./components/DegreeGrid";
 import SegmentTimeline from "./components/SegmentTimeline";
 import GushehTimeline from "./components/GushehTimeline";
+import ExportBar from "./components/ExportBar";
 import { analyzeFile, ApiError } from "./lib/api";
 import type { AnalysisResult } from "./lib/types";
 
@@ -120,6 +121,9 @@ export default function App() {
             </div>
             <div className="lg:col-span-2">
               <GushehTimeline result={result} />
+            </div>
+            <div className="lg:col-span-2">
+              <ExportBar result={result} />
             </div>
           </div>
         )}

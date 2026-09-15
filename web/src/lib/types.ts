@@ -22,6 +22,7 @@ export interface Segment {
   tonic_name: string;
   confidence: number;
   gushehs: GushehCandidate[];
+  musicxml?: string;
 }
 
 export interface LedgerRow {
@@ -65,4 +66,7 @@ export interface AnalysisResult {
   gushehs: GushehCandidate[];
   degrees: Degree[];
   segments: Segment[];
+
+  /** Identified scale as MusicXML; supplied by the API, absent otherwise. */
+  musicxml?: string;
 }

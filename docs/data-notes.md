@@ -395,3 +395,22 @@ family accuracy (79.6% excerpted against 87.0% whole-file on this subset). A
 whole-file run over all 340 recordings would settle the margin but costs roughly
 three hours of pYIN; the subset is enough to establish that no code change is
 warranted.
+
+## Gusheh templates from audio: not possible with this data
+
+Gusheh templates are built from notation, and the obvious improvement is to build
+them from audio instead — the same move that took mode accuracy from 18.8% to
+40.3%, since performance practice differs from the written radif.
+
+It cannot be done here. IRMA's 91 gusheh-labelled contours cover **80 distinct
+gushehs**: 72 appear exactly once, five twice, three three times. Under
+leave-one-out, 72 of the 80 would have no examples left and could not be
+identified at all, and only 19 contours have a sibling to learn from.
+
+An audio-derived template would be a single recording evaluated against itself.
+No number produced that way would mean anything, so none was.
+
+What would change this is more recordings per gusheh, not a better method — the
+same conclusion the within-family work reached about performers. Until then
+gusheh identification stays notation-based, at 25% top-1 and 48% top-3 against
+4% and 13% for guessing.
