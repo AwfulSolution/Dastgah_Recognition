@@ -1,0 +1,361 @@
+# Corpus notes
+
+Findings from working with the source data that are not obvious from the papers.
+
+## Radif Corpus
+
+- **229 gusheh CSVs, 43,441 notes**, matching the paper's count.
+- Schema: `Microtonal pitch, Duration, Pitch (quarter notes), Interval, MIDI pitch number, MIDI Bend`.
+- `Pitch (quarter notes)` is an absolute 24-TET integer equal to
+  `2 * MIDI pitch + bend`, where a bend of `+2048` is a raised quarter-tone.
+  Middle C is 120.
+- Rows whose pitch cell is `[` or `]` delimit phrase structure and sound nothing.
+- **Octave marks are register-relative.** `C+1` is 120 in some pieces and 144 in
+  others, because the notated octave is anchored to each piece's own tessitura.
+  Pitch *class* parsed from the label agrees with the absolute column for
+  99.98% of notes, but absolute pitch does not. Always read the column.
+- Accidental suffixes: `k` koron, `s` sori, `N` explicit natural, plus `#`/`b`.
+- **Eight transcription errors**, all in two Shūr files (`Ghajar`,
+  `Shahnaze kot ya asheqkosh`), where the label and the quarter-tone column
+  disagree on pitch class. Left as-is; the column is treated as authoritative.
+- Class sizes are very uneven: Māhūr 34, Chahārgāh 32, Shūr 29 … Afshārī 4,
+  Bayāt-e Esfahān 5. This is the main driver of per-class accuracy.
+- Tonics recovered from consensus final notes match theory: Shūr→G, Māhūr→C,
+  Chahārgāh→C, Rāst-Panjgāh→F, Homāyūn→G, and **Segāh→A-koron**, a tonic that
+  sits on a quarter-tone and cannot be represented in 12-TET at all.
+
+## IRMA
+
+- ~21,000 files, ~2.5 GB, but **18,700 of those are scanned score images**.
+  Clone blobless and sparse-checkout the data files only; that yields 225 MB.
+- The useful part is `*_pitch_*.csv` and `*_energy_*.csv` under each
+  `*_Mp3csv_folder`: f0 and energy contours extracted from recordings, one pair
+  per gusheh, with the dastgāh (`D1`–`D13`) and gusheh name in the filename.
+- **144 pitch contours, 4.6 hours**, covering 12 of the 13 modes. All of them
+  are from the **Karimi** tradition; the Mirza Abdollah tree carries scores and
+  MIDI but no contours. Bayāt-e Kord (`D6`) has no contours at all.
+- Contour CSVs are **headerless `time_seconds,f0_hz`** at roughly a 6 ms hop.
+  **Unvoiced frames are omitted rather than zero-marked**, so gaps in the time
+  column are silences — take frame durations from the time deltas, capped, or a
+  single frame before a long rest is credited with the whole rest.
+- **IRMA's `D1`–`D13` numbering is its own and does not match the Radif Corpus'
+  `01`–`13` directories.** For example IRMA `D2` is Abū'atā while the corpus'
+  `02` is Bayāt-e Kord. `D3` is listed as *Bayāt-e Zand*, the older name for
+  Bayāt-e Tork. The mapping lives in `dastgah/radif/irma.py`.
+- Also carries ~550 MIDI, ~294 Finale `.musx`, and 29 theoretical scale tables
+  (Ja'farzadeh and Talai) as `.xlsx`. The tables are unused so far and are an
+  independent check on the templates derived from the corpus.
+- **No audio is vendored.** `AUDIO_SOURCES.md` points at recordings that must be
+  obtained separately.
+
+### Why this set is worth having
+
+It is genuinely out of domain: the templates come from *notated* Mirza Abdollah,
+these contours from *recorded* Karimi. That gap exposed the single biggest bug in
+the pipeline — scoring frame-level histograms rather than note events. Frame
+histograms of real audio average 3.83 bits of entropy against 2.37 for the
+notation, which is broader than every template, so the classifier degenerated
+into choosing the most permissive one (103 of 144 predictions went to
+Rāst-Panjgāh). Nothing in the corpus leave-one-out could have surfaced this,
+because notated observations are already sharp.
+
+
+## The Shūr / Navā confusion
+
+On 340 real recordings Shūr scores 10.3% recall and 49 of its 78 tracks are
+called Navā — 14% of the entire dataset in one confusion, while every other
+dastgāh sits between 57% and 86%.
+
+**Cause.** The two modes share a pitch collection related by a perfect fourth.
+Rotating the Navā profile by +10 quarter-tones lifts its cosine against Shūr from
+0.621 to **0.931**, and on 22 of 25 sampled Shūr recordings the best Navā tonic
+sits exactly +10 quarter-tones above the best Shūr tonic. The classifier has the
+right notes and picks the wrong home.
+
+This is a tonic-identification problem, not a pitch-resolution one. Distinguishing
+the two requires knowing which degree functions as the *ist* — information that a
+pitch-class distribution does not carry at any resolution.
+
+**Two fixes tried, both refuted.**
+
+1. *A quarter-tone tonic shift.* Shūr sits one quarter-tone below Navā on three
+   degrees (+3/+4, +13/+14, +16/+17), so a flat tonic estimate would map one onto
+   the other. Measured: the offset is +10 quarter-tones in 22 of 25 files and
+   never ±1. Refuted.
+2. *A phrase-final (forud) tonic prior.* Weighting tonic candidates by notes that
+   come to rest before a silence, on the theory that the cadential descent marks
+   the ist. Measured on a 108-recording balanced sample: 61.1% with the existing
+   duration prior against 57.4% at the best phrase-final weight, degrading
+   monotonically to 40.7%. Refuted — plausibly because a 90-second excerpt taken
+   from the middle of a performance rarely contains a true forud.
+
+**Note on intonation.** Real recordings do place pitch peaks 8-20 cents off the
+24-TET grid, and frame-level grid fit drops to 0.2-0.35 against 0.97 on
+synthetic audio, driven by ornament and glissando rather than mistuning. That is
+a genuine limitation of a 50-cent grid, but it is *not* the cause of the dominant
+error above, and estimating the tuning reference from sustained note centres
+instead of all frames raised grid fit (0.18 to 0.42) while changing no
+predictions at all.
+
+
+## The representational ceiling
+
+The Shūr/Navā confusion turned out to be one instance of a general property, and
+the general property is the most important result of the work so far.
+
+Comparing every pair of modal templates at its best rotational alignment, **21 of
+the 78 pairs exceed cosine 0.85** and 12 exceed 0.90. Treating pairs above 0.90
+as indistinguishable and taking connected components collapses the 13 modes into
+**four groups** — which turn out to be the traditional families:
+
+| Component | Members |
+| --- | --- |
+| 7 | Shūr, Navā, Dashtī, Abū'atā, Afshārī, Bayāt-e Tork, Bayāt-e Kord |
+| 4 | Homāyūn, Bayāt-e Esfahān, Māhūr, Rāst-Panjgāh |
+| 1 | Chahārgāh |
+| 1 | Segāh |
+
+The clustering was derived purely from template geometry and recovers the Shūr
+family exactly as the tradition groups it. Chahārgāh (unique augmented seconds)
+and Segāh (tonic on a koron degree) are the only modes that stand alone.
+
+This predicts the measured per-class results and is confirmed by them: the two
+singleton components are the two classes that work (Chahārgāh 82%, Segāh 61-72%)
+while everything inside a large component sits between 0% and 43%.
+
+Measured on 168 balanced real recordings:
+
+| Question asked | Accuracy |
+| --- | --- |
+| Exact mode (13 classes) | 48.2% |
+| **Mode family (4 components)** | **72.6%** (chance 25%) |
+
+If a component were wholly indistinguishable and the answer guessed within it,
+the 13-class ceiling would be 30.8%. The measured 48.2% is above that, so the
+representation does carry *some* within-family information — but not much.
+
+**Conclusion: a tonic-relative pitch-class profile identifies the mode family,
+not the mode.** That is a property of the repertoire, not of this implementation:
+the modes within a family genuinely share pitch collections, differing by which
+degree functions as the ist and by melodic trajectory. No refinement of pitch
+statistics can separate them.
+
+### Four attempted fixes, all refuted
+
+Every one targeted the Shūr/Navā case and was measured, not assumed:
+
+| Attempt | Result |
+| --- | --- |
+| Quarter-tone tonic shift | Refuted — the offset is +10 quarter-tones in 22 of 25 files, never ±1 |
+| Phrase-final (forud) tonic prior | Refuted — 61.1% to 57.4%, degrading monotonically with weight |
+| Global register prior | Mixed — Shūr 0% to 40%, but overall 56.7% to 47.8% |
+| Register tie-break on rotation-related pairs only | Refuted — 47.6% against a 48.2% baseline |
+
+The register result is the informative one: the signal is real (the corpus keeps
+32.3% of Shūr duration below its tonic against 46.3% for Navā) and it does fix
+the target class, but commercial recordings vary in register far more than
+notated radif does, so applying it globally injects more noise into the classes
+that already work than it recovers from the broken one.
+
+### What this implies for the next step
+
+Separating within a family needs note *function* over time — which degree the
+melody treats as home, which it recites on, how phrases descend — not a better
+summary of which pitches occurred. That is the seyr, and it is a sequence
+model's problem, not a histogram's.
+
+A useful interim product change: report the family confidently and the mode
+tentatively, since the family answer is both more accurate and better calibrated.
+
+## Can a learned model separate modes within a family?
+
+Short answer: not from monophonic f0, on the evidence available here.
+
+The family layer is reliable (72-78%) and the remaining loss is concentrated in
+one place. Measured on 168 balanced real recordings:
+
+| | |
+| --- | --- |
+| Family accuracy | 72.0% |
+| Exact mode | 50.0% |
+| **Oracle, perfect within-family** | **72.0%, so +22.0 points are available** |
+
+Within a family the problem is small: on this archive the Shūr family reduces to
+Shūr vs Navā and the Māhūr family to Homāyūn vs Māhūr, both binary. Shūr vs Navā
+scored **33.3% — worse than a coin flip**, which suggested a systematic bias
+rather than absent information.
+
+### The confound that shaped the experiment
+
+Class is almost perfectly confounded with performer. Across 134 archive
+recordings there are only **nine performer groups**, and outside one of them the
+performer effectively determines the label:
+
+| Group | Shūr | Navā |
+| --- | --- | --- |
+| Hossein Alizadeh | 33 | 30 |
+| M.R. Shajarian (solo) | 30 | 0 |
+| Grohe Sheyda / Aaref | 10 | 0 |
+| Shajarian collaborations | 0 | 22 |
+| others | 5 | 4 |
+
+A random split would score well by memorising performers. Only Alizadeh holds
+performer constant, so that is the controlled test; cross-performer transfer and
+IRMA are separate, harder questions. Album and performer tags survive in the MP3
+originals under `Training_Data/` even though the WAV conversion stripped them.
+
+### What was tried
+
+Seven functional features, each a *difference* between the Shūr tonic hypothesis
+and the Navā one, asking of each candidate degree whether it behaves like a
+tonic: do phrases rest on it, is it a melodic sink, is it held long, where does
+it sit in the register, is it reached by descent, does the piece end on it, what
+share of time does it take. Plus the existing template score margin.
+
+| Feature set | Within-Alizadeh (5 seeds) | Trained on archive, tested on IRMA |
+| --- | --- | --- |
+| Functional only | 56.8% ±4.5 | 82.8% |
+| Template margin only | 75.9% ±0.6 | 65.5% |
+| Both | 65.1% | 82.8% |
+
+The results **invert between datasets**, which is the signature of fitting
+dataset-specific quirks rather than modal structure. The decisive test settles
+it:
+
+**Leave-one-performer-out over all nine groups: 56.0% learned, against 58.2% for
+always guessing the majority class.** The features do not generalise across
+performers.
+
+### The bias is real, but correcting it only moves the error
+
+The margin distribution explains the sub-chance result: **both classes have a
+negative mean margin** (Shūr -0.41, Navā -0.76), so splitting at zero puts nearly
+everything on the Navā side.
+
+Three corrections were measured:
+
+1. *Fitted threshold.* Archive 49.3% to 69.4%, but the optimum fitted on IRMA
+   (-0.396) differs from the one fitted on the archive (-0.733), and each
+   degrades the other set.
+2. *Corpus-derived per-template offsets*, each template's mean best score over
+   the corpus, computed without labels. Helped the binary case (archive 49.3% to
+   68.7%) and **destroyed the 13-class problem: 40.3% to 16.7%**, family 78.5% to
+   40.3%. The offset absorbs how often a template is legitimately correct, not
+   just how permissive it is.
+3. *Family-centred offsets*, the same correction centred within each family so
+   cross-family comparison is untouched. Closed-set accuracy rose slightly
+   (58.9% to 61.3%) but the per-class breakdown shows why it is not a fix:
+
+   | Class | Uncalibrated | Calibrated | Delta |
+   | --- | --- | --- | --- |
+   | Shūr | 3.6% | 28.6% | +25.0 |
+   | Navā | 46.4% | 3.6% | **-42.9** |
+
+   The correction moves the starvation from Shūr to Navā. Open-set accuracy fell
+   50.0% to 44.6% and family accuracy 72.0% to 68.5%, so it was reverted.
+
+That a threshold shift merely trades one class's recall for the other's is the
+clearest evidence that the pair carries almost no discriminative signal in this
+representation: there is no threshold that separates them because the two score
+distributions overlap almost entirely.
+
+### Conclusion
+
+**The family layer is the honest ceiling for pitch-based classification.**
+Separating modes inside a family needs information that a monophonic f0 contour
+summarised over a whole recording does not appear to carry — plausibly phrase
+level structure, or the interaction of melody with the accompanying drone, or
+simply more performers than nine.
+
+Anyone continuing should note the measurement requirements: group by performer,
+report leave-one-performer-out, and treat any result that inverts between two
+datasets as noise.
+
+## Cadence detection (forud)
+
+The one change that moved the within-family number, and the reason the earlier
+attempts failed.
+
+Every tonic estimate up to this point weighted candidates by **sounding time**.
+That is the wrong quantity: the most-sounded degree of a Persian mode is usually
+the *shahed*, the reciting tone, not the *ist*. For Shur the shahed sits a fourth
+above the tonic — exactly the interval that turns Shur into Nava. The estimator
+was electing the shahed and the classifier was faithfully reporting the mode that
+has its tonic there.
+
+`dastgah/core/forud.py` looks for the figure that actually establishes the tonic:
+a descent settling onto a held note, followed by a breath. A phrase ending is not
+enough — phrases close on the shahed and on passing degrees all the time — so a
+candidate needs all three of **descent** (how far and how steadily the line falls
+into the final note), **repose** (that note held longer than the phrase around
+it) and **silence after**, and carries a strength rather than a vote. An optional
+recency half-life favours later cadences, since a performance may visit several
+modes and only the closing forud returns to the principal tonic.
+
+### Why it is blended rather than substituted
+
+Cadence evidence is better but sparse, and a mode can cadence away from its tonic
+mid-performance. Pure cadence evidence measured *worse* than sounding time (IRMA
+38.9% against 40.3%); the blend measured better than either. Shipped at
+`forud_prior_weight = 0.30`, chosen by sweeping both datasets:
+
+| Blend weight | IRMA exact | IRMA family | IRMA Shūr | Archive exact | Archive family | Archive Shūr |
+| --- | --- | --- | --- | --- | --- | --- |
+| 0.00 (before) | 40.3% | 78.5% | 53.3% | 59.3% | 85.2% | 11.1% |
+| 0.20 | 41.7% | 77.1% | 66.7% | 59.3% | 85.2% | 11.1% |
+| **0.30** | **42.4%** | 76.4% | **66.7%** | **61.1%** | **87.0%** | **22.2%** |
+| 0.50 | 41.7% | 74.3% | 66.7% | 61.1% | 87.0% | 22.2% |
+
+Exact-mode accuracy and Shūr recall both improve on **two independent datasets**,
+which is what justified shipping it — the earlier tonic-prior retune was rejected
+precisely because the two sets disagreed there. Family accuracy is a wash: -2.1
+on IRMA against +1.8 on the archive, three contours and one recording
+respectively, both inside noise.
+
+### The excerpt-position mistake this uncovered
+
+Looking for cadences forced whole-recording analysis and exposed a measurement
+error running through everything before it: the evaluators sampled **90 seconds
+from the middle** of each recording. The forud is at the end. Sampling the end
+instead of the middle was worth, on its own:
+
+| Excerpt | open-13 | closed-6 | family |
+| --- | --- | --- | --- |
+| start | 52.8% | 59.7% | 77.8% |
+| middle | 54.2% | 62.5% | 75.0% |
+| **end** | **55.6%** | **70.8%** | **81.9%** |
+
+The product always analysed whole files, so this understated it rather than
+misreporting it — but it also explains why the earlier phrase-final tonic prior
+was refuted. It was looking for a cadence in a stretch of music that does not
+contain one.
+
+### What this does not fix
+
+Shūr remains the weakest class (22.2% on the archive, 66.7% on IRMA's cleaner
+solo radif). The family ceiling stands: this is a better tonic estimator, not a
+solution to within-family separation.
+
+## Excerpt position, confirmed at full scale
+
+The end-of-recording finding was measured on 72 recordings and then confirmed on
+all 340. Identical pipeline, identical settings, only the 90-second window moved:
+
+| Metric | 90s from the middle | 90s from the end |
+| --- | --- | --- |
+| Open-set (13 classes) | 49.7% | **56.5%** |
+| Closed-set (6 classes) | 59.4% | **67.1%** |
+| Mode family | 74.7% | **80.6%** |
+| Top-3 | 79.7% | **86.5%** |
+| Mean rank | 2.28 | **1.99** |
+
+Homāyūn gains most (75.5% to 91.8%), then Navā (55.4% to 66.1%) and Chahārgāh
+(74.4% to 81.4%). Shūr moves 9.0% to 14.1% and stays the outlier, as the
+within-family ceiling predicts.
+
+Seven points across every metric, from *where* the audio is sampled. The forud is
+a local event at the close of a performance, and a mid-performance excerpt
+frequently contains none — which is also why an early attempt at a phrase-final
+tonic prior measured as refuted. `evaluate_archive.py` now defaults to the end;
+a middle excerpt measures a configuration the library never uses, since
+`analyze()` has always read whole files.
