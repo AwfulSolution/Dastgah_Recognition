@@ -30,6 +30,12 @@ audio, so it is held out by construction:
 Per-class: Māhūr 93.9%, Homāyūn 91.8%, Chahārgāh 81.4%, Segāh 79.2%, Navā 66.1%,
 Shūr 14.1%.
 
+These come from 90-second excerpts and so **understate** the library, which reads
+whole recordings: on a 54-recording subset, whole-file analysis scored 87.0% at
+family level against 79.6% for the same recordings excerpted. Analysing the whole
+file is the best configuration measured, and end-weighting it makes things worse
+— see [docs/data-notes.md](docs/data-notes.md).
+
 **On the Karimi radif.** 144 IRMA pitch contours, 4.6 hours, scored against
 templates built from the notated Mirza Abdollah radif — a different tradition and
 medium (`python scripts/evaluate_irma.py`): 40.3% over 13 classes, 47.2% at 7,

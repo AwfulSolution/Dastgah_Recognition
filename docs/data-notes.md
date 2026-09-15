@@ -359,3 +359,39 @@ frequently contains none — which is also why an early attempt at a phrase-fina
 tonic prior measured as refuted. `evaluate_archive.py` now defaults to the end;
 a middle excerpt measures a configuration the library never uses, since
 `analyze()` has always read whole files.
+
+## Whole file against end-window: what the library should analyse
+
+`analyze()` reads whole recordings; the evaluator excerpts for speed. Those had
+never been compared on the same recordings, leaving open whether the published
+figures described the shipped behaviour. On 54 whole recordings:
+
+| Configuration | open-13 | closed-6 | family |
+| --- | --- | --- | --- |
+| **whole file (what `analyze()` does)** | 61.1% | 74.1% | **87.0%** |
+| last 180s | 61.1% | 75.9% | 83.3% |
+| last 90s | 63.0% | 74.1% | 79.6% |
+| last 60s | 53.7% | 66.7% | 72.2% |
+| whole file, recency half-life 240s | 61.1% | 75.9% | 87.0% |
+| whole file, recency half-life 60s | 59.3% | 72.2% | 83.3% |
+| whole file, recency half-life 30s | 57.4% | 66.7% | 77.8% |
+
+**No change needed.** Whole-file analysis has the best family accuracy, which is
+the metric the product leads with, and end-windowing costs it up to 7 points.
+Recency weighting does not help: the only half-life matching whole-file (240s) is
+long enough to be barely any weighting, and shorter ones degrade steadily.
+Per-class differences between whole-file and last-90s are all exactly two
+recordings at n=9 per class, and cancel out.
+
+This does not contradict the excerpt-position result, which answered a different
+question. *If you must excerpt, take the end*, because that is where the forud
+falls. *If you can read the whole recording, do that*, because you get the forud
+and everything else. Only below about 60 seconds does losing material outweigh
+gaining the cadence.
+
+One consequence: the headline archive figures were measured on 90-second
+excerpts and therefore **understate** the library slightly, most visibly on
+family accuracy (79.6% excerpted against 87.0% whole-file on this subset). A
+whole-file run over all 340 recordings would settle the margin but costs roughly
+three hours of pYIN; the subset is enough to establish that no code change is
+warranted.
