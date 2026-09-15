@@ -167,6 +167,16 @@ uvicorn dastgah.api.server:app --port 8000
 cd web && npm install && npm run dev
 ```
 
+## Performance
+
+Analysis runs at roughly **55x realtime** on an M4, measured end to end on real
+recordings from 2.6 to 20.8 minutes (46x to 62x, median 56.6x). A ten-minute
+upload takes about eleven seconds and a half-hour recording about thirty; pYIN
+pitch tracking dominates, and the cost is close to linear in duration.
+
+That is fast enough that the whole archive of 340 recordings, some 24 hours of
+audio, evaluates in under half an hour.
+
 ## How it works
 
 1. **f0 tracking** — pYIN over 70–1200 Hz.
