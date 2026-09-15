@@ -490,3 +490,46 @@ Per-class, whole-file against end-excerpt, the differences do not point one way:
 Navā gains (66.1% to 71.4%) while Homāyūn loses (91.8% to 79.6%). Shūr sits at
 12.8%, between the middle-excerpt 9.0% and end-excerpt 14.1%, and the
 within-family ceiling is unmoved.
+
+## Reproducibility check
+
+Verified by cloning the pushed branch from GitHub into an empty directory and
+building from nothing:
+
+| Step | Result |
+| --- | --- |
+| `uv pip install -e ".[api,dev]"` | clean |
+| `pytest` before any corpus is fetched | 122 passed, 2 skipped |
+| `./scripts/fetch_data.sh radif` | 229 gusheh CSVs from Zenodo |
+| `python scripts/build_templates.py` | both artefacts rebuilt |
+| `templates.json` against the committed file | **byte-identical** |
+| `gushehs.json` against the committed file | **byte-identical** |
+| `pytest` after the rebuild | 122 passed, 2 skipped |
+| `scripts/evaluate.py` | 60.3% / 69.4%, matching the README |
+| CLI on a recording | correct |
+
+So the claim that the templates derive from the Radif Corpus is not merely
+documented but checkable: anyone can delete both JSON files and regenerate them
+exactly.
+
+Three defects surfaced, all now fixed.
+
+**Nothing built `gushehs.json`.** It had been produced ad hoc, so a fresh clone
+could not regenerate it and the provenance of all 229 gusheh templates rested on
+an artefact nobody could reproduce. `build_templates.py` now writes both.
+
+**The fetch could not survive a transient network error.** Zenodo reset the
+connection at 42% on the first attempt and the script gave up, leaving a partial
+file that a rerun would have tried to unzip. It now retries with
+`--retry-all-errors`, deletes partial downloads, and verifies the archive with
+`unzip -t` before extracting.
+
+**The fetch reported success after doing nothing.** Its CSV count looked in
+`radif_corpus/CSV` while the archive extracts to `radif_corpus/RadifCorpus/CSV`,
+so it printed "0 gusheh CSVs" and then "done" — a good download and a failed one
+were indistinguishable. Both counts are now correct and assert a plausible file
+count rather than reporting whatever they find.
+
+The IRMA half of the fetch was exercised earlier in development but not re-run
+here, since it is a 225 MB sparse checkout; its error handling was hardened in
+the same pass but is not covered by this check.
