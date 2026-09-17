@@ -20,7 +20,8 @@ from __future__ import annotations
 
 import json
 from collections import Counter
-from dataclasses import asdict, dataclass
+from collections.abc import Iterable
+from dataclasses import asdict, dataclass, replace
 from pathlib import Path
 
 import numpy as np
@@ -177,6 +178,38 @@ def aligned_similarity(a: ModalTemplate, b: ModalTemplate) -> float:
         float(np.dot(first, np.roll(second, shift)) / norm_product)
         for shift in range(QUARTER_TONES_PER_OCTAVE)
     )
+
+
+#: The seven dastgahs are the classes with audio evidence behind them. The six
+#: in ``DASTGAHS_WITH_AUDIO`` are those the evaluation archive covers; the avazes
+#: and Rast-Panjgah remain in the templates but score 0-22% and 12.8%
+#: respectively, so a caller may prefer to keep them out of the running.
+DASTGAHS_WITH_AUDIO = (
+    "shur", "nava", "homayun", "mahur", "chahargah", "segah",
+)
+
+
+def restrict(
+    templates: dict[str, ModalTemplate], keys: "Iterable[str]"
+) -> dict[str, ModalTemplate]:
+    """Narrow the candidate modes, recomputing families over what remains.
+
+    Scores are computed per template and are independent of which others are
+    present, so restricting here gives exactly the answer that picking the best
+    surviving candidate afterwards would. What it does change is the family
+    partition, which must be recomputed: over the six dastgahs with audio,
+    Homayun and Mahur separate and only Shur and Nava remain grouped.
+    """
+    chosen = [k for k in keys if k in templates]
+    if not chosen:
+        raise ValueError("no known modes left after restriction")
+
+    narrowed = {
+        key: replace(templates[key]) for key in sorted(chosen)
+    }
+    for key, family in build_families(narrowed).items():
+        narrowed[key].family = family
+    return narrowed
 
 
 def build_families(

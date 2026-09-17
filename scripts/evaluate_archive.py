@@ -38,7 +38,7 @@ from dastgah.core.audio import (
 from dastgah.core.analyze import _blend_prior, _tonic_prior
 from dastgah.core.classify import DEFAULT_CONFIG, classify
 from dastgah.core.forud import find_foruds
-from dastgah.radif.templates import load_templates
+from dastgah.radif.templates import DASTGAHS_WITH_AUDIO, load_templates, restrict
 from dastgah.theory import MODAL_CLASSES_BY_KEY, modal_class_from_name
 
 
@@ -95,6 +95,11 @@ def main() -> int:
     )
     parser.add_argument("--limit", type=int, default=0, help="max files per class")
     parser.add_argument(
+        "--dastgahs-only",
+        action="store_true",
+        help="consider only the six dastgahs with audio evidence",
+    )
+    parser.add_argument(
         "--position",
         choices=("start", "middle", "end"),
         default="end",
@@ -114,6 +119,8 @@ def main() -> int:
     seconds = None if args.seconds <= 0 else args.seconds
 
     templates = load_templates(args.templates)
+    if args.dastgahs_only:
+        templates = restrict(templates, DASTGAHS_WITH_AUDIO)
     files: list[tuple[str, Path]] = []
     for folder in sorted(p for p in args.archive.iterdir() if p.is_dir()):
         key = folder_to_key(folder.name)

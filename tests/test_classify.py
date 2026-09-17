@@ -181,3 +181,53 @@ def test_the_family_answer_is_never_less_confident_than_the_mode(templates):
         families = dict(result.ranked_families())
         classes = dict(result.ranked_classes())
         assert families[best.family] >= classes[best.key] - 1e-9
+
+
+def test_restricting_modes_recomputes_families(templates):
+    """Over the six dastgahs with audio, only Shur and Nava stay grouped."""
+    from dastgah.radif.templates import (
+        DASTGAHS_WITH_AUDIO,
+        family_members,
+        restrict,
+    )
+
+    narrowed = restrict(templates, DASTGAHS_WITH_AUDIO)
+    assert set(narrowed) == set(DASTGAHS_WITH_AUDIO)
+
+    members = family_members(narrowed)
+    sizes = sorted(len(v) for v in members.values())
+    assert sizes == [1, 1, 1, 1, 2]
+    pair = next(v for v in members.values() if len(v) == 2)
+    assert set(pair) == {"shur", "nava"}
+
+
+def test_restriction_leaves_the_original_untouched(templates):
+    """Homayun groups with Mahur over all 13 and stands alone over six."""
+    from dastgah.radif.templates import DASTGAHS_WITH_AUDIO, restrict
+
+    before = templates["homayun"].family
+    narrowed = restrict(templates, DASTGAHS_WITH_AUDIO)
+    assert templates["homayun"].family == before == "mahur"
+    assert narrowed["homayun"].family == "homayun"
+
+
+def test_restriction_does_not_change_the_answer_among_survivors(templates):
+    """Scores are per-template, so narrowing cannot reorder what remains."""
+    import numpy as np
+
+    from dastgah.radif.templates import DASTGAHS_WITH_AUDIO, restrict
+
+    narrowed = restrict(templates, DASTGAHS_WITH_AUDIO)
+    rng = np.random.default_rng(0)
+    for _ in range(25):
+        histogram = rng.random(24)
+        full = [k for k, _ in classify(histogram, templates).ranked_classes()]
+        survivor = next(k for k in full if k in DASTGAHS_WITH_AUDIO)
+        assert classify(histogram, narrowed).ranked_classes()[0][0] == survivor
+
+
+def test_restricting_to_nothing_known_is_an_error(templates):
+    from dastgah.radif.templates import restrict
+
+    with pytest.raises(ValueError, match="no known modes"):
+        restrict(templates, ["not_a_mode"])

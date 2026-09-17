@@ -533,3 +533,38 @@ count rather than reporting whatever they find.
 The IRMA half of the fetch was exercised earlier in development but not re-run
 here, since it is a 225 MB sparse checkout; its error handling was hardened in
 the same pass but is not covered by this check.
+
+## Restricting to the six dastgahs with audio
+
+`--dastgahs-only` drops the six avazes and Rast-Panjgah from the running,
+leaving Shur, Nava, Homayun, Mahur, Chahargah and Segah — exactly the classes
+the evaluation archive covers.
+
+**It does not change accuracy at all**, and cannot. Each (mode, tonic) score is
+computed from that template alone, so removing other templates cannot reorder the
+survivors: picking the best of the six afterwards and scoring only the six give
+identical answers. Measured at exactly +0.0 points on both IRMA (n=81) and the
+archive (n=168), which is the arithmetic rather than a close call.
+
+What it changes is what gets reported, and the family partition:
+
+| Over all 13 | Over the six |
+| --- | --- |
+| Shur group (7 members) | **Shur group: Shur, Nava** |
+| Mahur group (4 members) | Homayun, Mahur — now separate singletons |
+| Chahargah, Segah singletons | unchanged |
+
+The family layer stops being an abstraction over a seven-mode blur and becomes a
+precise statement: the only modal distinction the method cannot make among these
+six is Shur against Nava. Homayun and Mahur separating is consistent with that
+pair measuring 94.8% under leave-one-performer-out.
+
+The case for using it is not performance but honesty: avaz readings run 0-22% and
+Rast-Panjgah 12.8%, so offering them costs the user more than withholding them.
+The templates stay in the file either way, so nothing is lost.
+
+Calibration survives the change. The softmax temperature was fitted over 13
+classes, and restricting redistributes probability over fewer, but T=0.5 remains
+the best setting for the reduced set as well (ECE 0.092 against 0.043). The full
+set runs slightly underconfident, the restricted set slightly overconfident, both
+around three points.
