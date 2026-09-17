@@ -30,6 +30,7 @@ this module only requires 24 bins of relative weight.
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -114,6 +115,49 @@ class Classification:
 
     def probability_of(self, key: str) -> float:
         return dict(self.ranked_classes()).get(key, 0.0)
+
+    def ranked_dastgahs(
+        self, allowed: "Iterable[str] | None" = None
+    ) -> list[tuple[str, float]]:
+        """Probability per dastgah, with each avaz folded into its mother.
+
+        An avaz is a branch of its parent dastgah rather than a rival to it, so
+        evidence for Dashti is evidence for Shur. Folding the probability rather
+        than dropping the avaz templates keeps that evidence: measured on
+        recordings that contain no avaz at all, folding still beats leaving the
+        templates out, because an avaz profile detects its parent's territory
+        that the parent's own profile covers less well.
+
+        ``allowed`` optionally restricts the answer space, in which case the
+        remaining probability is renormalised over it.
+        """
+        totals: dict[str, float] = {}
+        for candidate in self.candidates:
+            modal = MODAL_CLASSES_BY_KEY[candidate.key]
+            mother = modal.parent or candidate.key
+            if allowed is not None and mother not in allowed:
+                continue
+            totals[mother] = totals.get(mother, 0.0) + candidate.probability
+
+        total = sum(totals.values())
+        if total > 0:
+            totals = {k: v / total for k, v in totals.items()}
+        return sorted(totals.items(), key=lambda kv: kv[1], reverse=True)
+
+    def best_for_dastgah(self, key: str) -> Candidate:
+        """Highest-scoring hypothesis belonging to a dastgah or one of its avazes.
+
+        Used for the tonic, which must come from whichever profile actually
+        matched rather than from the mother's by default.
+        """
+        belonging = [
+            c
+            for c in self.candidates
+            if (MODAL_CLASSES_BY_KEY[c.key].parent or c.key) == key
+        ]
+        if not belonging:
+            raise KeyError(f"no candidate belongs to {key!r}")
+        return max(belonging, key=lambda c: c.score)
 
     def ranked_families(self) -> list[tuple[str, float]]:
         """Mode families with probability marginalised over their members.

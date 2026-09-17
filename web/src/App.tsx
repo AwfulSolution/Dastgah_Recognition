@@ -43,7 +43,7 @@ export default function App() {
             <span className="label-mono">Modal Audio Intelligence</span>
           </div>
           <span className="label-mono text-outline">
-            Radif Corpus · 229 gushehs · 13 modal classes
+            Radif Corpus · 229 gushehs · 6 dastgāhs
           </span>
         </div>
       </header>
@@ -81,21 +81,20 @@ export default function App() {
             <p className="text-[13px] leading-relaxed text-on-surface/75">
               Confidence is calibrated against measured accuracy, so a reading near
               50% genuinely means a coin-flip between the top candidates — read the
-              ledger, not just the headline. On a held-out set of 144 recorded
-              performances the accuracy is{" "}
-              <span className="font-mono text-on-surface">40.3%</span> across 13
-              individual modes — but{" "}
-              <span className="font-mono text-primary">78.5%</span> at the level
-              of mode <em>family</em>, which is why the family is reported first.
+              ledger, not just the headline. Each āvāz is folded into its mother
+              dastgāh rather than reported separately: āvāz readings run 0–22%
+              accurate, while their templates remain useful as evidence{" "}
+              <em>for</em> the parent. Folding beats leaving them out by{" "}
+              <span className="font-mono text-primary">5 to 15 points</span>.
             </p>
             <p className="mt-2 text-[13px] leading-relaxed text-on-surface/75">
-              The limit is structural. Comparing every pair of modal templates at
-              its best rotational alignment, 21 of 78 pairs are near-identical:
-              the 13 modes collapse into four families that a pitch-class profile
-              cannot separate internally. Chahārgāh and Segāh are the only modes
-              standing alone — and the only two that classify reliably.{" "}
+              The limit is structural. Modes that share a pitch collection cannot
+              be separated by measuring pitch content, however finely. Among
+              these six that leaves exactly one unresolved pair — Shūr and Navā,
+              the same collection rotated by a fourth — which the family reading
+              reports honestly instead of guessing between.{" "}
               <span className="text-tertiary">
-                Within a family, read the ranking as a shortlist, not a verdict.
+                Inside that pair, read the ranking as a shortlist, not a verdict.
               </span>
             </p>
           </section>

@@ -32,7 +32,13 @@ from dastgah.radif.gusheh import (
     load_gusheh_templates,
     tessitura,
 )
-from dastgah.radif.templates import ModalTemplate, family_members, load_templates
+from dastgah.radif.templates import (
+    DASTGAHS_WITH_AUDIO,
+    ModalTemplate,
+    family_members,
+    load_templates,
+    restrict,
+)
 from dastgah.theory import (
     MODAL_CLASSES_BY_KEY,
     QUARTER_TONES_PER_OCTAVE,
@@ -165,6 +171,19 @@ class AnalysisResult:
         for row in self.ledger[:5]:
             lines.append(f"    {row['name']:<24} {100 * row['probability']:5.1f}%")
         return "\n".join(lines)
+
+
+def _family_confidence(
+    ranked: list[tuple[str, float]],
+    family_source: dict[str, ModalTemplate],
+    family_key: str,
+) -> float:
+    """Total probability over the answers belonging to one family."""
+    return sum(
+        p
+        for key, p in ranked
+        if key in family_source and (family_source[key].family or key) == family_key
+    )
 
 
 def _tonic_prior(
@@ -486,8 +505,17 @@ def analyze(
     config: ScoringConfig = DEFAULT_CONFIG,
     with_segments: bool = True,
     with_gushehs: bool = True,
+    answer_space: tuple[str, ...] | None = DASTGAHS_WITH_AUDIO,
 ) -> AnalysisResult:
-    """Analyse a recording and return its modal classification."""
+    """Analyse a recording and return its modal classification.
+
+    By default the answer is one of the six dastgahs with audio evidence behind
+    them. All thirteen templates still score — an avaz profile is evidence for
+    its mother dastgah, and folding that evidence in beats leaving the avaz
+    templates out by 5 to 15 points — but avaz probability is folded into the
+    parent rather than reported separately, since avaz readings are only 0-22%
+    accurate. Pass ``answer_space=None`` to get all thirteen classes back.
+    """
     path = Path(path)
     if templates is None:
         templates = load_templates(DEFAULT_TEMPLATE_PATH)
@@ -521,11 +549,22 @@ def analyze(
     )
     ranked = result.ranked_classes()
 
-    best = result.best
-    modal = best.modal_class
+    if answer_space is None:
+        ranked = result.ranked_classes()
+        best = result.best
+        family_source = templates
+    else:
+        ranked = result.ranked_dastgahs(answer_space)
+        # The tonic must come from whichever profile actually matched, which may
+        # be an avaz of the winning dastgah rather than the dastgah itself.
+        best = result.best_for_dastgah(ranked[0][0])
+        family_source = restrict(templates, answer_space)
+
+    winner = ranked[0][0]
+    modal = MODAL_CLASSES_BY_KEY[winner]
     template = templates[best.key]
-    family_key = template.family or best.key
-    members = family_members(templates)
+    family_key = family_source[winner].family or winner
+    members = family_members(family_source)
     shahed_pc = (best.tonic_pc + template.shahed_interval) % N
     tonic_hz = track.reference_hz * (2.0 ** ((best.tonic_pc - 138 % N) / 24.0))
     # express the tonic in the octave nearest the performance's own register
@@ -547,14 +586,14 @@ def analyze(
         voiced_fraction=round(track.voiced_fraction, 4),
         n_note_events=len(events),
         n_cadences=len(foruds),
-        key=best.key,
+        key=winner,
         name=modal.display,
         persian=modal.persian,
         kind=modal.kind,
-        confidence=round(float(dict(ranked)[best.key]), 4),
+        confidence=round(float(dict(ranked)[winner]), 4),
         family=family_key,
         family_name=f"{MODAL_CLASSES_BY_KEY[family_key].name} group",
-        family_confidence=round(float(dict(result.ranked_families())[family_key]), 4),
+        family_confidence=round(float(_family_confidence(ranked, family_source, family_key)), 4),
         family_members=[
             MODAL_CLASSES_BY_KEY[k].name for k in members.get(family_key, [family_key])
         ],
@@ -566,18 +605,18 @@ def analyze(
         ledger=[
             {
                 "key": k,
-                "name": templates[k].modal_class.display if k in templates else k,
-                "short_name": templates[k].modal_class.name if k in templates else k,
-                "persian": templates[k].modal_class.persian if k in templates else "",
-                "kind": templates[k].modal_class.kind if k in templates else "",
-                "family": templates[k].family or k if k in templates else k,
+                "name": MODAL_CLASSES_BY_KEY[k].display,
+                "short_name": MODAL_CLASSES_BY_KEY[k].name,
+                "persian": MODAL_CLASSES_BY_KEY[k].persian,
+                "kind": MODAL_CLASSES_BY_KEY[k].kind,
+                "family": (family_source[k].family or k) if k in family_source else k,
                 "probability": round(float(p), 5),
             }
             for k, p in ranked
         ],
         degrees=_degrees(histogram, best.tonic_pc, events),
         gushehs=(
-            _gushehs(events, best.tonic_pc, best.key, gusheh_templates)
+            _gushehs(events, best.tonic_pc, winner, gusheh_templates)
             if gusheh_templates
             else []
         ),

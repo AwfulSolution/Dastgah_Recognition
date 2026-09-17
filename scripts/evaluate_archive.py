@@ -38,7 +38,7 @@ from dastgah.core.audio import (
 from dastgah.core.analyze import _blend_prior, _tonic_prior
 from dastgah.core.classify import DEFAULT_CONFIG, classify
 from dastgah.core.forud import find_foruds
-from dastgah.radif.templates import DASTGAHS_WITH_AUDIO, load_templates, restrict
+from dastgah.radif.templates import DASTGAHS_WITH_AUDIO, load_templates
 from dastgah.theory import MODAL_CLASSES_BY_KEY, modal_class_from_name
 
 
@@ -95,9 +95,9 @@ def main() -> int:
     )
     parser.add_argument("--limit", type=int, default=0, help="max files per class")
     parser.add_argument(
-        "--dastgahs-only",
+        "--all-classes",
         action="store_true",
-        help="consider only the six dastgahs with audio evidence",
+        help="rank all 13 classes instead of folding each avaz into its mother",
     )
     parser.add_argument(
         "--position",
@@ -119,8 +119,7 @@ def main() -> int:
     seconds = None if args.seconds <= 0 else args.seconds
 
     templates = load_templates(args.templates)
-    if args.dastgahs_only:
-        templates = restrict(templates, DASTGAHS_WITH_AUDIO)
+    answer_space = None if args.all_classes else DASTGAHS_WITH_AUDIO
     files: list[tuple[str, Path]] = []
     for folder in sorted(p for p in args.archive.iterdir() if p.is_dir()):
         key = folder_to_key(folder.name)
@@ -150,13 +149,18 @@ def main() -> int:
             if histogram.sum() <= 0:
                 failures += 1
                 continue
-            ranked = classify(
+            result = classify(
                 histogram,
                 templates,
                 transitions=transitions,
                 tonic_prior=prior,
                 config=DEFAULT_CONFIG,
-            ).ranked_classes()
+            )
+            ranked = (
+                result.ranked_classes()
+                if answer_space is None
+                else result.ranked_dastgahs(answer_space)
+            )
         except Exception as exc:  # noqa: BLE001
             print(f"  failed: {path.name}: {exc}")
             failures += 1
@@ -164,7 +168,7 @@ def main() -> int:
 
         order = [k for k, _ in ranked]
         predicted = order[0]
-        closed = next(k for k in order if k in present)
+        closed = next((k for k in order if k in present), order[0])
 
         open_hits += predicted == truth
         closed_hits += closed == truth

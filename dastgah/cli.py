@@ -10,7 +10,7 @@ from pathlib import Path
 
 from dastgah.core.analyze import DEFAULT_TEMPLATE_PATH, analyze
 from dastgah.core.classify import ScoringConfig
-from dastgah.radif.templates import DASTGAHS_WITH_AUDIO, load_templates, restrict
+from dastgah.radif.templates import DASTGAHS_WITH_AUDIO, load_templates
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -27,15 +27,14 @@ def build_parser() -> argparse.ArgumentParser:
         "--no-segments", action="store_true", help="skip the windowed timeline pass"
     )
     parser.add_argument(
-        "--dastgahs-only",
+        "--all-classes",
         action="store_true",
         help=(
-            "consider only the six dastgahs with audio evidence behind them, "
-            "leaving out the avazes and Rast-Panjgah. Accuracy on those six is "
-            "unchanged, since scores do not depend on which other modes are in "
-            "the running; what changes is that no low-confidence avaz reading "
-            "is offered, and the families reduce to Shur/Nava plus four "
-            "singletons"
+            "report all 13 modal classes rather than folding each avaz into its "
+            "mother dastgah. Avaz readings are only 0-22% accurate, so the "
+            "default answers with one of the six dastgahs; the avaz templates "
+            "still score either way, since their evidence counts toward the "
+            "parent"
         ),
     )
     parser.add_argument("--sharpen", type=float, default=ScoringConfig.sharpen)
@@ -50,8 +49,7 @@ def main(argv: list[str] | None = None) -> int:
     warnings.filterwarnings("ignore", category=RuntimeWarning)
 
     templates = load_templates(args.templates)
-    if args.dastgahs_only:
-        templates = restrict(templates, DASTGAHS_WITH_AUDIO)
+    answer_space = None if args.all_classes else DASTGAHS_WITH_AUDIO
     config = ScoringConfig(
         sharpen=args.sharpen, transition_weight=args.transition_weight
     )
@@ -68,6 +66,7 @@ def main(argv: list[str] | None = None) -> int:
                 templates=templates,
                 config=config,
                 with_segments=not args.no_segments,
+                answer_space=answer_space,
             )
         except Exception as exc:  # noqa: BLE001 - surfaced to the user verbatim
             print(f"error: {path.name}: {exc}", file=sys.stderr)

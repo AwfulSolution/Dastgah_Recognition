@@ -38,15 +38,17 @@ export default function ProbabilityLedger({ result }: { result: AnalysisResult }
       <header className="panel-header justify-between">
         <span className="label-mono text-secondary">Modal Probability Ledger</span>
         <span className="label-mono text-outline">
-          {groups.length} famil{groups.length === 1 ? "y" : "ies"} · 13 modes
+          {groups.length} famil{groups.length === 1 ? "y" : "ies"} ·{" "}
+          {result.ledger.length} dastgāhs
         </span>
       </header>
 
       <div className="p-4">
         <p className="mb-3 text-[13px] leading-relaxed text-on-surface/70">
-          Grouped by mode family. The family totals are the reliable reading;
-          within a family the modes share a pitch collection and the split between
-          them is far less certain.
+          Grouped by mode family, with each āvāz folded into its mother dastgāh.
+          Family totals are the reliable reading; where a family holds more than
+          one mode they share a pitch collection, and the split between them is
+          far less certain.
         </p>
 
         <ol className="space-y-3">

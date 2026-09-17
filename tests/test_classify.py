@@ -231,3 +231,73 @@ def test_restricting_to_nothing_known_is_an_error(templates):
 
     with pytest.raises(ValueError, match="no known modes"):
         restrict(templates, ["not_a_mode"])
+
+
+def test_avaz_probability_folds_into_its_mother(templates):
+    """Dashti is a branch of Shur, so evidence for it is evidence for Shur."""
+    import numpy as np
+
+    histogram = np.roll(templates["dashti"].as_array(), templates["dashti"].tonic_pc)
+    result = classify(histogram, templates)
+
+    assert result.ranked_classes()[0][0] == "dashti"
+    assert result.ranked_dastgahs()[0][0] == "shur"
+
+
+def test_folded_probability_is_the_sum_over_a_mother_and_its_avazes(templates):
+    import numpy as np
+
+    from dastgah.theory import MODAL_CLASSES_BY_KEY
+
+    result = classify(np.random.default_rng(0).random(24), templates)
+    classes = dict(result.ranked_classes())
+    folded = dict(result.ranked_dastgahs())
+
+    for mother, total in folded.items():
+        expected = sum(
+            p
+            for key, p in classes.items()
+            if (MODAL_CLASSES_BY_KEY[key].parent or key) == mother
+        )
+        assert total == pytest.approx(expected, abs=1e-9)
+
+
+def test_folded_answers_contain_no_avaz(templates):
+    import numpy as np
+
+    from dastgah.theory import MODAL_CLASSES_BY_KEY
+
+    rng = np.random.default_rng(1)
+    for _ in range(20):
+        for key, _ in classify(rng.random(24), templates).ranked_dastgahs():
+            assert MODAL_CLASSES_BY_KEY[key].kind == "dastgah"
+
+
+def test_restricting_the_answer_space_renormalises(templates):
+    import numpy as np
+
+    from dastgah.radif.templates import DASTGAHS_WITH_AUDIO
+
+    result = classify(np.random.default_rng(2).random(24), templates)
+    ranked = result.ranked_dastgahs(DASTGAHS_WITH_AUDIO)
+    assert set(k for k, _ in ranked) <= set(DASTGAHS_WITH_AUDIO)
+    assert sum(p for _, p in ranked) == pytest.approx(1.0)
+
+
+def test_tonic_comes_from_whichever_profile_matched(templates):
+    """A Dashti recording answers Shur, but its tonic is Dashti's, not Shur's."""
+    import numpy as np
+
+    histogram = np.roll(templates["dashti"].as_array(), templates["dashti"].tonic_pc)
+    result = classify(histogram, templates)
+    best = result.best_for_dastgah("shur")
+    assert best.key == "dashti"
+    assert best.tonic_pc == templates["dashti"].tonic_pc
+
+
+def test_best_for_dastgah_rejects_an_unknown_key(templates):
+    import numpy as np
+
+    result = classify(np.ones(24), templates)
+    with pytest.raises(KeyError):
+        result.best_for_dastgah("not_a_mode")
