@@ -622,3 +622,48 @@ consequently runs a few points optimistic. Sum-pooling buys accuracy at the cost
 of a decision that depends on a calibration parameter, which is a real wart.
 Deciding by strongest member instead would remove the dependence but measured
 6-9 points worse.
+
+## Stacking a learned model on the classifier's own output
+
+The base classifier collapses 312 scored hypotheses into one answer, discarding
+the shape of the score profile. A meta-model reading that whole profile — all 13
+marginals, the 6 folded totals, the top confidence and the top-two margin — is a
+natural way to recover it, and unlike the hand-crafted features tried earlier it
+needs no new musical insight.
+
+The routing precondition holds, which it did not in earlier work: confidence
+separates correct from incorrect answers with **AUC 0.809** (65.7% mean
+confidence when right against 45.8% when wrong). Deferring the least-confident
+20% captures 25 of 60 errors, so a perfect second stage would reach 79.2%.
+
+Under leave-one-performer-out the stacker measured **+2 to +4 points** (64.3%
+base against 66-68.5%) across a broad regularisation plateau, C from 0.02 to 0.2.
+The breadth looked like evidence the gain was real.
+
+**It is not.** The archive has 13 performer groups but two of them — Hossein
+Alizadeh and Mohammad-Reza Shajarian, after merging collaboration albums — hold
+310 of the 340 recordings. Leave-one-performer-out is therefore very nearly
+"train on one of those two, test on the other", and a model can score well on it
+by learning which of the two it is listening to.
+
+Training on those two and testing on the **five remaining artists**, 30
+recordings the model never sees:
+
+| | base | stacker |
+| --- | --- | --- |
+| held-out artists, C=0.02 | 50.0% | 46.7% |
+| held-out artists, C=0.1 | 50.0% | 53.3% |
+| held-out artists, C=0.3 | 50.0% | 50.0% |
+
+Identical for four of the five artists; the only movement is one recording of
+Nazeri's eight. The leave-one-performer-out gain does not transfer, so it was
+the two dominant performers trading places, not modal learning.
+
+Not shipped. It would also have ended the property that makes this system's
+numbers unusually trustworthy — that nothing was trained on the evaluation audio.
+
+**A limitation this exposed.** The base system scores 50.0% on those 30
+recordings against 64.3% on the two dominant artists. Part of that is sample
+skew — Grohe Sheyda is entirely Shūr, Gorouh Moulana entirely Māhūr, and n=30 is
+thin — but the headline figure does lean on two performers, and a third would
+test it far better than more recordings from the same two.

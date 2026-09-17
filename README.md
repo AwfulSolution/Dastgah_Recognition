@@ -30,6 +30,11 @@ never seen this audio, so it is held out by construction:
 Per-class: Māhūr 93.9%, Chahārgāh 86.0%, Homāyūn 79.6%, Segāh 77.1%, Shūr 60.3%,
 Navā 53.6%.
 
+One caveat on that figure: two performers account for 310 of the 340 recordings.
+On the 30 from five other artists the system scores 50%, against 64% on the
+dominant two. The sample is small and skewed, but the headline leans on two
+performers more than is comfortable.
+
 Folding each avaz into its mother dastgah rather than reporting it separately is
 worth **+6.7 points** over ranking all thirteen classes and taking the best of
 the six (74.1% against 67.4%), and lifts Shūr from 12.8% to 60.3%. Shūr has five
