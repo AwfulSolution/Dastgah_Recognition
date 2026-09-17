@@ -126,7 +126,11 @@ def main() -> int:
         if key is None:
             print(f"  skipping unrecognised folder: {folder.name}")
             continue
-        found = sorted(folder.rglob("*.wav"))
+        found = sorted(
+            path
+            for pattern in ("*.wav", "*.flac", "*.aiff", "*.aif", "*.mp3", "*.m4a")
+            for path in folder.rglob(pattern)
+        )
         files.extend((key, p) for p in (found[: args.limit] if args.limit else found))
 
     if not files:

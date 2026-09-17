@@ -14,32 +14,31 @@ Three evaluations. The spread between them is the important part: the
 more the test material differs from the notated radif the templates come from,
 the more the accuracy falls.
 
-**On real recordings (the number that matters).** 340 commercial performances,
-~24 hours, six dastgahs, supplied as a folder-per-class archive. Measured on
-whole recordings, exactly as the library analyses them
-(`python scripts/evaluate_archive.py <dir> --seconds 0`). The templates have
-never seen this audio, so it is held out by construction:
+**On unseen performers (the number to trust).** The KDC corpus, 92 solo
+recordings by four professional musicians across all six dastgahs, none of them
+present in any tuning or development done here:
 
 | Metric | Result |
 | --- | --- |
-| Accuracy over the six dastgahs | **74.1%** (chance 16.7%) |
-| Top-3 | **97.6%** |
-| Mode family | **83.8%** (chance 25%) |
-| Mean rank of the true dastgah | 1.36 of 13 |
+| Accuracy over the six dastgahs | **55.4%** (chance 16.7%) |
+| Top-3 | 84.8% |
+| Mode family | 67.4% (chance 25%) |
 
-Per-class: Māhūr 93.9%, Chahārgāh 86.0%, Homāyūn 79.6%, Segāh 77.1%, Shūr 60.3%,
-Navā 53.6%.
+Per-class: Māhūr 100%, Chahārgāh 66.7%, Homāyūn 61.5%, Shūr 52.9%, Navā 25.0%,
+Segāh 23.1%.
 
-One caveat on that figure: two performers account for 310 of the 340 recordings.
-On the 30 from five other artists the system scores 50%, against 64% on the
-dominant two. The sample is small and skewed, but the headline leans on two
-performers more than is comfortable.
+**On the development archive.** 340 commercial performances, ~24 hours, six
+dastgahs: **74.1%**, top-3 97.6%, family 83.8%, mean rank 1.36 of 13. Per-class:
+Māhūr 93.9%, Chahārgāh 86.0%, Homāyūn 79.6%, Segāh 77.1%, Shūr 60.3%, Navā 53.6%.
 
-Folding each avaz into its mother dastgah rather than reporting it separately is
-worth **+6.7 points** over ranking all thirteen classes and taking the best of
-the six (74.1% against 67.4%), and lifts Shūr from 12.8% to 60.3%. Shūr has five
-avazes, and their evidence was previously scattered across classes nobody wanted
-as an answer while Navā absorbed Shūr's territory.
+The gap between those two figures is the important part. Two performers account
+for 310 of the archive's 340 recordings, and every weight in `ScoringConfig` was
+chosen against it. On performers outside that set the system scores 19 points
+lower — corroborated independently by the archive's own five minority artists,
+where it scores 50% against 64% on the dominant two.
+
+**Treat 55% as the honest expectation for a new performer and 74% as an upper
+bound on material resembling the development set.**
 
 **On the Karimi radif.** 144 IRMA pitch contours, 4.6 hours, scored against
 templates built from the notated Mirza Abdollah radif — a different tradition and
@@ -143,7 +142,8 @@ puts Homāyūn alongside Māhūr, which no theorist would.
 
 | Evaluation | Exact mode | Family |
 | --- | --- | --- |
-| Real recordings (archive) | 74.1% | **83.8%** |
+| Unseen performers (KDC) | 55.4% | **67.4%** |
+| Development archive | 74.1% | **83.8%** |
 | Karimi radif (IRMA) | 40.3% | **78.5%** |
 
 ## Install

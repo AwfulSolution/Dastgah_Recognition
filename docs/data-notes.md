@@ -667,3 +667,36 @@ recordings against 64.3% on the two dominant artists. Part of that is sample
 skew — Grohe Sheyda is entirely Shūr, Gorouh Moulana entirely Māhūr, and n=30 is
 thin — but the headline figure does lean on two performers, and a third would
 test it far better than more recordings from the same two.
+
+## The number on performers the system has never seen
+
+The KDC corpus (Nikzat & Caro Repetto, ISMIR 2022) is 92 solo recordings by four
+professional musicians — Mas'ud Sho'ari, Reza Zalpour, Mohammad Khodadadi and
+Farahnaz Sahebgalam — each covering all six dastgahs. None appears in the
+development archive, and no weight here was chosen against it.
+
+| Metric | Development archive | **KDC, unseen performers** |
+| --- | --- | --- |
+| Accuracy over six dastgahs | 74.1% | **55.4%** |
+| Top-3 | 97.6% | 84.8% |
+| Family | 83.8% | 67.4% |
+| Mean rank | 1.36 | 1.98 |
+
+**A 19-point drop.** It is corroborated independently: on the archive's own five
+minority artists (30 recordings) the system scores 50% against 64% on the two
+dominant ones. Two separate held-out sets agree, so this is the generalisation
+gap rather than a quirk of either.
+
+Per-class the failure is not uniform. Māhūr scores 100% on KDC, 15 of 15. Segāh
+collapses from 77.1% to 23.1% and Navā from 53.6% to 25.0%.
+
+Why it drops is not established. Candidates: KDC is solo instrumental where much
+of the archive is ensemble and voice; its recordings average 74 seconds against
+the archive's 162, so each carries less evidence; and every scoring weight was
+tuned against the archive, so some of the 74.1% is fitted to it. The templates
+themselves come from notation and cannot have been fitted to either.
+
+**The headline was moved.** 55.4% is now what the README leads with, as the
+honest expectation for a new performer; 74.1% is stated as an upper bound on
+material resembling the development set. Anyone quoting a single figure for this
+system should quote the lower one.
