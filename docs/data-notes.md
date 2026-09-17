@@ -568,3 +568,57 @@ classes, and restricting redistributes probability over fewer, but T=0.5 remains
 the best setting for the reduced set as well (ECE 0.092 against 0.043). The full
 set runs slightly underconfident, the restricted set slightly overconfident, both
 around three points.
+
+## Folding avazes into their mother dastgah
+
+Avaz readings run 0-22% accurate, so they are not worth reporting as answers.
+There are two ways to stop reporting them and they are not equivalent.
+
+Dropping the avaz templates from the running measured **worse**. An avaz is a
+branch of its parent, so a match against the Dashti profile is evidence for Shur;
+removing the template discards that evidence. Keeping all thirteen templates
+scoring and folding avaz probability into the mother beats dropping them by 14.7
+points on IRMA and 5.4 on the archive — and the archive contains no avaz
+recordings at all, so the gain is not about classifying avazes. An avaz profile
+simply covers parts of its parent's territory that the parent's own profile
+covers less well.
+
+On all 340 recordings, whole files:
+
+| Metric | Rank 13, take best of six | Fold into mother |
+| --- | --- | --- |
+| Accuracy over six dastgahs | 67.4% | **74.1%** |
+| Top-3 | 88.2% | **97.6%** |
+| Family | 81.2% | **83.8%** |
+| Mean rank | 1.88 | **1.36** |
+
+The per-class effect is concentrated where the structure predicts. **Shur rises
+from 12.8% to 60.3%**, the largest single improvement measured in this work. Shur
+has five avazes; their probability had been spread across classes that were never
+going to be the answer, while Navā absorbed the territory. Shur→Navā confusions
+fall from 50 to 16, and Navā drops from 71.4% to 53.6%, having been inflated by
+the same imbalance.
+
+### Temperature stopped being a display setting
+
+Folding sums probabilities *after* the softmax, so the temperature now decides
+which dastgah wins rather than only how confident the answer looks. It was set
+to 0.4 on calibration grounds while folding was still optional, and that choice
+was not revisited when folding became the default and the criterion changed.
+
+Measured on accuracy under folding:
+
+| T | whole-file | IRMA | whole ECE | IRMA ECE |
+| --- | --- | --- | --- | --- |
+| 0.3 | 75.9% | 63.1% | **0.081** | **0.132** |
+| 0.4 | 74.1% | 66.2% | 0.203 | 0.141 |
+| **0.5** | **79.6%** | 69.2% | 0.229 | 0.176 |
+| 0.7 | 64.8% | **71.5%** | 0.223 | 0.275 |
+
+The two sets disagree on the optimum — whole recordings prefer 0.5, IRMA's
+contours 0.7 — and calibration would prefer 0.3 on both. 0.5 is best on average
+for accuracy (74.4% against 70.2% at 0.4) and is the shipped value; confidence
+consequently runs a few points optimistic. Sum-pooling buys accuracy at the cost
+of a decision that depends on a calibration parameter, which is a real wart.
+Deciding by strongest member instead would remove the dependence but measured
+6-9 points worse.

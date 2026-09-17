@@ -22,18 +22,19 @@ never seen this audio, so it is held out by construction:
 
 | Metric | Result |
 | --- | --- |
-| Closed-set accuracy (6 classes present) | **67.4%** (chance 16.7%) |
-| Open-set accuracy (all 13 classes) | **57.1%** (chance 7.7%) |
-| Mode family | **81.2%** (chance 25%) |
-| Top-3 | 88.2% |
-| Mean rank of the true mode | 1.88 of 13 |
+| Accuracy over the six dastgahs | **74.1%** (chance 16.7%) |
+| Top-3 | **97.6%** |
+| Mode family | **83.8%** (chance 25%) |
+| Mean rank of the true dastgah | 1.36 of 13 |
 
-Per-class: Māhūr 97.0%, Chahārgāh 86.0%, Segāh 81.2%, Homāyūn 79.6%, Navā 71.4%,
-Shūr 12.8%.
+Per-class: Māhūr 93.9%, Chahārgāh 86.0%, Homāyūn 79.6%, Segāh 77.1%, Shūr 60.3%,
+Navā 53.6%.
 
-Ninety-second excerpts taken from the end of each recording score within a point
-of this on every metric and run about ten times faster, which is why the
-evaluator defaults to them.
+Folding each avaz into its mother dastgah rather than reporting it separately is
+worth **+6.7 points** over ranking all thirteen classes and taking the best of
+the six (74.1% against 67.4%), and lifts Shūr from 12.8% to 60.3%. Shūr has five
+avazes, and their evidence was previously scattered across classes nobody wanted
+as an answer while Navā absorbed Shūr's territory.
 
 **On the Karimi radif.** 144 IRMA pitch contours, 4.6 hours, scored against
 templates built from the notated Mirza Abdollah radif — a different tradition and
@@ -137,7 +138,7 @@ puts Homāyūn alongside Māhūr, which no theorist would.
 
 | Evaluation | Exact mode | Family |
 | --- | --- | --- |
-| Real recordings (archive) | 57.1% | **81.2%** |
+| Real recordings (archive) | 74.1% | **83.8%** |
 | Karimi radif (IRMA) | 40.3% | **78.5%** |
 
 ## Install

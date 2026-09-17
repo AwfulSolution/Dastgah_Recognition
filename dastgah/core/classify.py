@@ -67,13 +67,19 @@ class ScoringConfig:
     transition_weight: float = 0.5
     #: Weight on the tonic prior, which blends sounding time with cadences.
     tonic_prior_weight: float = 0.25
-    #: Softmax temperature, calibrated so reported confidence tracks observed
-    #: accuracy. Fitted for the default answer space, where each avaz folds into
-    #: its mother dastgah: 0.4 gives a +0.1 point confidence gap on the archive
-    #: and -2.3 on IRMA, the two sets agreeing independently on the same value.
-    #: Reporting all 13 classes instead leaves the result mildly overconfident,
-    #: since folding redistributes probability over fewer answers.
-    temperature: float = 0.4
+    #: Softmax temperature.
+    #:
+    #: Under the default answer space this is not only a display setting. Folding
+    #: an avaz into its mother sums probabilities *after* the softmax, so the
+    #: temperature changes which dastgah wins, not merely how confident the
+    #: answer looks. Chosen on accuracy for that reason: averaged over the two
+    #: evaluation sets, 0.5 scores 74.4% against 70.2% at 0.4.
+    #:
+    #: The sets disagree about the exact optimum — whole recordings prefer 0.5,
+    #: IRMA's contours 0.7 — and calibration would prefer 0.3 on both. 0.5 is
+    #: the compromise: best on average for accuracy, and confidence runs a few
+    #: points optimistic as a result.
+    temperature: float = 0.5
 
 
 DEFAULT_CONFIG = ScoringConfig()
