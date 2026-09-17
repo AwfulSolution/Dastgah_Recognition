@@ -55,7 +55,17 @@ class ScoringConfig:
     optimistic rather than as a held-out estimate.
     """
 
-    sharpen: float = 3.0
+    #: Exponent applied to a template before scoring.
+    #:
+    #: Originally 3.0, chosen by leave-one-out over the notated corpus — before
+    #: the switch from frame to note-event histograms, and before any audio was
+    #: involved. Notated observations are sharp, so 3.0 suited them; on audio it
+    #: over-corrects. Lowered to 2.0 on the evidence of four independent sets:
+    #: it beats 3.0 on the archive, on two performer-disjoint halves of KDC, and
+    #: on IRMA, which was held out of the selection entirely. The KDC peak sits
+    #: nearer 1.75, but IRMA ranks that below 3.0, so 2.0 is taken as the robust
+    #: choice rather than the peak of the sets used to choose it.
+    sharpen: float = 2.0
     #: Share of the tonic prior taken from detected cadences rather than
     #: sounding time. Cadence evidence is sparser but points at the ist
     #: instead of the shahed, so the two are blended rather than swapped.
