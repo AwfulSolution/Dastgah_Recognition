@@ -136,6 +136,15 @@ def main() -> int:
     if not files:
         parser.error("no recordings found")
 
+    # When the classifier answers with dastgahs, the ground truth has to be
+    # folded the same way: a recording of Abu'ata is a correct answer of Shur.
+    if answer_space is not None:
+        files = [
+            (MODAL_CLASSES_BY_KEY[k].parent or k, p)
+            for k, p in files
+            if (MODAL_CLASSES_BY_KEY[k].parent or k) in answer_space
+        ]
+
     present = sorted({k for k, _ in files})
     family_of = {k: (t.family or k) for k, t in templates.items()}
     open_hits = closed_hits = family_hits = 0

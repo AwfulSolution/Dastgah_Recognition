@@ -700,3 +700,58 @@ themselves come from notation and cannot have been fitted to either.
 honest expectation for a new performer; 74.1% is stated as an upper bound on
 material resembling the development set. Anyone quoting a single figure for this
 system should quote the lower one.
+
+## KDC in full: 273 recordings, six performers, every mode but one
+
+The KUG Dastgāhi Corpus is 273 objects at
+[phaidra.kug.ac.at/o:127195](https://phaidra.kug.ac.at/detail/o:127195), of which
+92 were already present in this project's wider tree. Fetching the rest gives
+3.8 hours across **12 of the 13 modes** — only Bayāt-e Kord is absent — performed
+by six musicians: Mas'ud Sho'ari, Reza Zalpour, Mohammad Khodadadi, Farahnaz
+Sahebgalam, Negar Bouban and Pouya Khoshravesh. None appears in the development
+archive.
+
+**Licence: CC BY-NC-ND 4.0**, not the CC-BY-4.0 the Zenodo record implies. Local
+evaluation is fine; redistributing the audio or data derived from it is not.
+
+The recordings are darāmads and average 50 seconds, against 162 for the archive,
+so absolute accuracy is expected to sit lower: excerpts under a minute measured
+several points worse in the windowing tests.
+
+### The generalisation gap, confirmed at scale
+
+| | development archive | KDC (92 subset) | **KDC (255)** |
+| --- | --- | --- | --- |
+| Accuracy over six dastgahs | 74.1% | 55.4% | **53.3%** |
+| Family | 83.8% | 67.4% | 64.3% |
+
+Nearly three times the material gives the same answer. Together with the archive's
+own minority artists (50%), three held-out measurements now agree that the
+development figure overstates performance on a new performer by roughly twenty
+points.
+
+### Avazes cannot be identified directly, measured on avaz audio
+
+This corpus contains the first real āvāz recordings available to the project —
+the archive has none and IRMA supplies contours rather than audio. Ranking all
+thirteen classes rather than folding:
+
+| | folded to dastgah | all 13 classes |
+| --- | --- | --- |
+| accuracy | **53.3%** | 19.8% |
+| top-3 | 80.0% | 41.4% |
+| mean rank | 2.15 | 5.08 |
+
+Per class in the thirteen-way setting: Navā 40.0%, Rāst-Panjgāh 38.9%,
+Chahārgāh 38.5%, Dashtī 28.6%, Māhūr 27.3%, Segāh 23.8%, Homāyūn 18.2%,
+Bayāt-e Tork 15.0%, Abū'atā 11.1%, and **Afshārī, Bayāt-e Esfahān and Shūr at
+0.0%**.
+
+Shūr scoring zero is the pathology folding exists to fix: its own āvāzes absorb
+it, so recordings of Shūr are returned as Dashtī or Abū'atā. Folding is worth
+**+33.5 points** here, decided on material that is actually āvāz rather than
+inferred from dastgāh recordings.
+
+Rāst-Panjgāh appears here for the first time with audio behind it, at 38.9% in
+the thirteen-way setting. It remains outside the default answer space, since the
+development archive contains none and the six-way figures cannot speak to it.

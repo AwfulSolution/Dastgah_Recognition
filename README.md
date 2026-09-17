@@ -14,18 +14,22 @@ Three evaluations. The spread between them is the important part: the
 more the test material differs from the notated radif the templates come from,
 the more the accuracy falls.
 
-**On unseen performers (the number to trust).** The KDC corpus, 92 solo
-recordings by four professional musicians across all six dastgahs, none of them
-present in any tuning or development done here:
+**On unseen performers (the number to trust).** The KDC corpus, 255 solo
+recordings by six professional musicians, none of them present in any tuning or
+development done here:
 
 | Metric | Result |
 | --- | --- |
-| Accuracy over the six dastgahs | **55.4%** (chance 16.7%) |
-| Top-3 | 84.8% |
-| Mode family | 67.4% (chance 25%) |
+| Accuracy over the six dastgahs | **53.3%** (chance 16.7%) |
+| Top-3 | 80.0% |
+| Mode family | 64.3% (chance 25%) |
 
-Per-class: Māhūr 100%, Chahārgāh 66.7%, Homāyūn 61.5%, Shūr 52.9%, Navā 25.0%,
-Segāh 23.1%.
+Per-class: Shūr 71.2%, Māhūr 68.2%, Chahārgāh 46.2%, Homāyūn 41.9%, Navā 16.0%,
+Segāh 14.3%.
+
+These recordings are darāmads averaging 50 seconds, against 162 for the
+development archive, which accounts for part of the gap; excerpts under a minute
+measure several points worse.
 
 **On the development archive.** 340 commercial performances, ~24 hours, six
 dastgahs: **74.1%**, top-3 97.6%, family 83.8%, mean rank 1.36 of 13. Per-class:
@@ -142,7 +146,7 @@ puts Homāyūn alongside Māhūr, which no theorist would.
 
 | Evaluation | Exact mode | Family |
 | --- | --- | --- |
-| Unseen performers (KDC) | 55.4% | **67.4%** |
+| Unseen performers (KDC) | 53.3% | **64.3%** |
 | Development archive | 74.1% | **83.8%** |
 | Karimi radif (IRMA) | 40.3% | **78.5%** |
 
