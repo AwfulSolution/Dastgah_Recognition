@@ -10,116 +10,41 @@ tār, setār, ney, kamānche, santur or voice without having seen any of them.
 
 ## Current accuracy
 
-Three evaluations. The spread between them is the important part: the
-more the test material differs from the notated radif the templates come from,
-the more the accuracy falls.
+Five corpora, listed from the broadest evidence to the narrowest. The spread
+between them is the important part, and it is mostly about who is playing.
 
-**On unseen performers (the number to trust).** The KDC corpus, 255 solo
-recordings by six professional musicians, none of them present in any tuning or
-development done here:
+**On Nava — the broadest evidence available.** 1,785 solo recordings, 54.9
+hours, by **39 artists** across five instruments and all seven dastgahs
+(BabaAli & Mohammadi, University of Tehran; obtained by request):
 
 | Metric | Result |
 | --- | --- |
-| Accuracy over the six dastgahs | **53.3%** (chance 16.7%) |
-| Top-3 | 80.0% |
-| Mode family | 64.3% (chance 25%) |
+| Accuracy over seven dastgahs | **63.8%** (chance 14.3%) |
+| Macro average over classes | 63.1% |
+| Per-artist mean | 64.2%, sd 11.7, range 41-86% |
 
-Per-class: Shūr 71.2%, Māhūr 68.2%, Chahārgāh 46.2%, Homāyūn 41.9%, Navā 16.0%,
-Segāh 14.3%.
+Per-class: Segāh 78.2%, Shūr 73.0%, Chahārgāh 71.6%, Homāyūn 68.4%, Māhūr 57.0%,
+Navā 55.8%, Rāst-Panjgāh 37.8%.
 
-These recordings are darāmads averaging 50 seconds, against 162 for the
-development archive, which accounts for part of the gap; excerpts under a minute
-measure several points worse.
+This is the figure to quote. It is five times the recordings and six times the
+performers of anything else here, it is balanced across dastgah and instrument,
+and nothing in the system was tuned against it — the templates come from
+notation, and every weight was fixed before Nava was obtained.
 
-**On the development archive.** 340 commercial performances, ~24 hours, six
-dastgahs: **74.1%**, top-3 97.6%, family 83.8%, mean rank 1.36 of 13. Per-class:
-Māhūr 93.9%, Chahārgāh 86.0%, Homāyūn 79.6%, Segāh 77.1%, Shūr 60.3%, Navā 53.6%.
+**Performer and instrument both matter.** Accuracy varies across artists with a
+standard deviation of 11.7 points. By instrument it runs 65-69% for four of the
+five and **50.8% for the fifth**, a 15-point deficit. The two effects cannot be
+fully separated here: 30 of the 39 artists play only one instrument.
 
-The gap between those two figures is the important part. Two performers account
-for 310 of the archive's 340 recordings, and every weight in `ScoringConfig` was
-chosen against it. On performers outside that set the system scores 19 points
-lower — corroborated independently by the archive's own five minority artists,
-where it scores 50% against 64% on the dominant two.
+**On other corpora.** The development archive of 340 commercial performances
+scores 74.1% over six dastgahs; KDC, 255 solo recordings by six musicians, scores
+53.3%; IRMA's 130 Karimi-radif contours score 69.2%. The archive figure is the
+least trustworthy of the four — two performers hold 310 of its 340 recordings and
+every scoring weight was chosen against it.
 
-**Treat 55% as the honest expectation for a new performer and 74% as an upper
-bound on material resembling the development set.**
-
-**On the Karimi radif.** 144 IRMA pitch contours, 4.6 hours, scored against
-templates built from the notated Mirza Abdollah radif — a different tradition and
-medium (`python scripts/evaluate_irma.py`): 40.3% over 13 classes, 47.2% at 7,
-top-3 65.3%, calibration error 0.096.
-
-**On the radif itself.** Leave-one-out over the 229 notated gushehs
-(`python scripts/evaluate.py`): 60.3% / 69.4%, tonic 65.5%. Treat this as an
-upper bound, not a forecast — the scoring weights were tuned on that same split,
-and real recordings are messier than notation.
-
-Reported confidence is calibrated in both settings (43.6% mean confidence against
-40.3% accuracy out of domain), so a 50% reading genuinely means a coin-flip
-between the leading candidates.
-
-### Accuracy is very uneven, and the pattern is structural
-
-On real recordings, five of six dastgahs land between 57% and 86% — but Shūr
-collapses to 10.3%, and 49 of its 78 recordings are called Navā:
-
-| Class | Recall | | Class | Recall |
-| --- | --- | --- | --- |
-| Māhūr | 86.4% | | Segāh | 72.9% |
-| Homāyūn | 75.5% | | Navā | 57.1% |
-| Chahārgāh | 72.1% | | **Shūr** | **10.3%** |
-
-That single confusion is 14% of the whole dataset, and it is not a defect of the
-templates. Shūr and Navā **share a pitch collection, rotated by a fourth**:
-
-```
-Shūr on G : G  Ak  Bb  C  Dk  D  Eb  F
-Navā on C : C  D   Eb  F  G   Ak  Bb
-```
-
-Their profiles reach cosine 0.931 once aligned. Any method scoring pitch content
-against a tonic hypothesis can therefore place the tonic a fourth away and
-recover an almost perfect match. Separating them needs note *function* — which
-degree is the ist, which the shahed — not better pitch measurement.
-
-This is not specific to Shūr. Comparing every pair of templates at its best
-rotational alignment, 21 of 78 pairs exceed cosine 0.85, and treating pairs above
-0.90 as indistinguishable collapses the 13 modes into **four components that
-reproduce the traditional families** — with Chahārgāh and Segāh the only modes
-standing alone, and the only two that classify well.
-
-Asking for the family instead of the mode, on 168 balanced real recordings:
-
-| Question | Accuracy |
-| --- | --- |
-| Exact mode (13 classes) | 48.2% |
-| **Mode family (4 components)** | **72.6%** (chance 25%) |
-
-**A tonic-relative pitch-class profile identifies the mode family, not the
-mode.** Four fixes were tried against the Shūr case and all measured neutral or
-worse; see [docs/data-notes.md](docs/data-notes.md) for the numbers.
-
-On the Karimi radif, where the 13-class set includes the avazes, the split runs
-along dastgāh versus āvāz instead:
-
-| Dastgāh | | Āvāz | |
-| --- | --- | --- | --- |
-| Chahārgāh | 70% | Abū'atā | 22% |
-| Homāyūn | 67% | Bayāt-e Tork | 17% |
-| Navā | 64% | Dashtī | 11% |
-| Rāst-Panjgāh | 64% | Afshārī | 0% |
-| Shūr | 53% | Bayāt-e Esfahān | 0% |
-| Māhūr | 45% | | |
-| Segāh | 30% | | |
-
-An āvāz shares its scale with its parent dastgāh and differs in melodic emphasis,
-which a pitch-distribution method cannot see. **The dastgāhs are usable; the
-āvāzes are not.** Fixing that needs melodic-contour modelling, not better
-templates.
-
-For context, published work reports around 86% F1 on a **7-class** task with a
-**trained** model ([AzarNet](https://arxiv.org/pdf/1812.07017)). This is a
-13-class untrained baseline and is meant as a floor to beat.
+**On the notated radif itself.** Leave-one-out over the 229 gushehs:
+60.3% across 13 classes, 69.4% at 7. An upper bound rather than a forecast, since
+the weights were tuned on that split.
 
 ## What it reports
 

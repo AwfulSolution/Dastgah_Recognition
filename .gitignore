@@ -11,3 +11,4 @@ web/dist/
 .pytest_cache/
 *.tsbuildinfo
 .claude/settings.local.json
+data/cache/

@@ -755,3 +755,48 @@ inferred from dastgāh recordings.
 Rāst-Panjgāh appears here for the first time with audio behind it, at 38.9% in
 the thirteen-way setting. It remains outside the default answer space, since the
 development archive contains none and the six-way figures cannot speak to it.
+
+## Nava settles the sharpen question, and reverses an earlier call
+
+Nava (BabaAli & Mohammadi, University of Tehran) is 1,785 solo recordings, 54.9
+hours, by **39 artists** across five instruments and all seven dastgahs — five
+times the recordings and six times the performers of anything else here, and
+balanced on both axes.
+
+Its filenames encode `instrument_dastgah_artist_track` with no accompanying
+documentation. The dastgah digits were identified by ear by the project owner,
+corroborated on four of the seven groups by a second listener, with a third
+listener reading groups 1, 3, 4 and 5 differently. Those four carry real label
+uncertainty. The ordering implied by the paper's abstract is wrong on at least
+one count: all three listeners and the classifier independently read group 6 as
+Chahārgāh where that ordering gives Rāst-Panjgāh.
+
+### The sharpen exponent
+
+| sharpen | Nava (1785) | archive (340) | KDC (255) | IRMA (130) |
+| --- | --- | --- | --- | --- |
+| 2.0 | 60.6% | 69.4% | **56.9%** | **72.3%** |
+| **3.0** | **63.8%** | **74.1%** | 53.3% | 69.2% |
+
+On Nava accuracy rises monotonically with the exponent: 55.6% at 1.5, 60.6% at
+2.0, 62.5% at 2.5, 63.8% at 3.0.
+
+It had been lowered to 2.0 on the strength of KDC and IRMA. That was wrong, and
+instructively so: those are the two smallest corpora, and the decision rested on
+them because nothing larger with performer diversity existed yet. Nava and the
+archive — the two largest — both prefer 3.0, so it is restored.
+
+### Performer and instrument, finally separable in part
+
+Accuracy across the 20 artists with at least 15 recordings: **mean 64.2%, sd
+11.7, range 41-86%**. Performer sensitivity is therefore real but smaller than
+the 21-point archive-to-KDC drop suggested; some of that gap was corpus and
+recording-length effects attributed to performers.
+
+By instrument, four of the five score 65-69% and the fifth scores **50.8%** — a
+15 to 19 point deficit, the first direct evidence that instrument matters
+independently.
+
+The two cannot be fully disentangled: **30 of the 39 artists play exactly one
+instrument**. The weakest instrument has 10 artists behind it, so it is not one
+player's idiosyncrasy, but the design does not permit a clean separation.

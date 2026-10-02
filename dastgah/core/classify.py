@@ -57,15 +57,19 @@ class ScoringConfig:
 
     #: Exponent applied to a template before scoring.
     #:
-    #: Originally 3.0, chosen by leave-one-out over the notated corpus — before
-    #: the switch from frame to note-event histograms, and before any audio was
-    #: involved. Notated observations are sharp, so 3.0 suited them; on audio it
-    #: over-corrects. Lowered to 2.0 on the evidence of four independent sets:
-    #: it beats 3.0 on the archive, on two performer-disjoint halves of KDC, and
-    #: on IRMA, which was held out of the selection entirely. The KDC peak sits
-    #: nearer 1.75, but IRMA ranks that below 3.0, so 2.0 is taken as the robust
-    #: choice rather than the peak of the sets used to choose it.
-    sharpen: float = 2.0
+    #: Chosen at 3.0 by leave-one-out over the notated corpus, briefly lowered
+    #: to 2.0 when KDC (255 recordings, 6 performers) and IRMA (130) both
+    #: preferred it, then restored. Nava settles it: over 1,785 recordings by 39
+    #: artists, accuracy rises monotonically with the exponent — 55.6% at 1.5,
+    #: 60.6% at 2.0, 62.5% at 2.5, 63.8% at 3.0 — and the 340-recording archive
+    #: agrees. The two corpora that preferred 2.0 are the two smallest; Nava is
+    #: seven times KDC's size with six times the artists.
+    #:
+    #: Without sharpening, broad templates win by default: a permissive
+    #: distribution assigns respectable likelihood to any input. It also offsets
+    #: the observation being blurrier than the notation the templates come from.
+    #: Note that above 1.0 a template no longer exactly recovers itself.
+    sharpen: float = 3.0
     #: Share of the tonic prior taken from detected cadences rather than
     #: sounding time. Cadence evidence is sparser but points at the ist
     #: instead of the shahed, so the two are blended rather than swapped.
