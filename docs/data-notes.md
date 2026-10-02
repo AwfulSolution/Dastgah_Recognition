@@ -800,3 +800,104 @@ independently.
 The two cannot be fully disentangled: **30 of the 39 artists play exactly one
 instrument**. The weakest instrument has 10 artists behind it, so it is not one
 player's idiosyncrasy, but the design does not permit a clean separation.
+
+## Nava is the first corpus here where training is defensible
+
+39 artists, 1,785 recordings, near-balanced over seven dastgahs and five
+instruments. Everything below is **artist-grouped**: a random split is
+meaningless here, because 11 of the 39 artists play exactly one dastgah, so
+artist identity leaks the label outright.
+
+### The feature representation decides everything
+
+Artist-grouped 5-fold, against the untrained templates' 63.8%:
+
+| features | model | grouped | in-fold |
+| --- | --- | --- | --- |
+| absolute 24-bin profile | logreg | 12.2% | 34.5% |
+| absolute 24-bin profile | gbt | 39.0% | 100.0% |
+| tonic-rotated profile | logreg | 61.3% | 62.6% |
+| tonic-rotated profile | gbt | 65.9% | 100.0% |
+| template log-probs | logreg | **66.8%** | 68.6% |
+| rotated + log-probs | gbt | 67.1% | 100.0% |
+
+The first two rows are the warning. A boosted model on the **untransposed**
+histogram memorises its training fold perfectly and then scores 39% on unseen
+artists — 24 points *below* the untrained templates. It is learning instrument
+tuning and player register, not mode. Any protocol that did not group by artist
+would have reported it as excellent.
+
+Rotating the profile to the template-estimated tonic is what makes learning
+possible at all: the same model goes 39% to 65.9% on identical pitch data, only
+re-indexed. **A trained model here is not an alternative to the template system;
+it depends on it for the tonic.**
+
+### Leave one artist out: the gain transfers, unlike stacking
+
+Over the 20 artists with at least 15 recordings (1,691 held-out predictions):
+**templates 63.4%, model 67.6%, better on 15 of 20 artists.** Macro-averaged,
+which weights each dastgah equally: **62.6% to 66.4%**.
+
+This is a real difference from the stacking attempt recorded above, where a
+LOPO gain of 2-4 points vanished entirely on unseen artists because two
+dominant performers were trading places. Here every predicted artist is unseen.
+
+The gain lands where the templates are weakest. Five of the six artists the
+templates scored below 57% gain 9 to 18 points (artist 02: 54.9% to 72.5%;
+artist 25: 56.6% to 72.3%). The templates encode one notated radif, so a player
+far from Talai's reading is exactly where 38 other players have something to
+add. Artist 39 is the counterexample: worst at 41.1%, and the model drops it to
+26.8%.
+
+### What moves, by class
+
+| dastgah | templates | model | delta |
+| --- | --- | --- | --- |
+| chahargah | 70.8% | 86.2% | +15.4 |
+| nava | 53.6% | 65.8% | +12.2 |
+| homayun | 67.4% | 73.3% | +5.9 |
+| segah | 77.8% | 82.7% | +4.9 |
+| shur | 73.5% | 75.8% | +2.3 |
+| mahur | 57.5% | 59.1% | +1.5 |
+| rast_panjgah | 37.7% | **22.2%** | **-15.5** |
+
+Navā moving 12 points is notable on its own: six hand-built features and one
+learned model all failed to separate Shūr from Navā earlier in this project.
+
+The Rāst-Panjgāh collapse is **not** the model trading a weak class away to buy
+the others, which is what the table looks like at first glance. The prediction
+counts give the real mechanism. Templates *over*-predict Rāst-Panjgāh badly —
+268 predictions against 207 true recordings — and those 61 false positives are
+stolen from other classes. The model corrects the over-prediction and overshoots
+into under-prediction, 132 predictions for 207 recordings. Other classes gain
+from the correction; Rāst-Panjgāh recall pays for the overshoot.
+
+Chahārgāh's +15.4 is independent of it: of the 44 recordings the model rescues,
+**34 were called Homāyūn** by the templates and only 4 Rāst-Panjgāh. That is a
+learned discrimination, not reallocated probability.
+
+Where true Rāst-Panjgāh actually goes is **Māhūr**: 40.6% under the templates,
+48.3% under the model. That confusion is theory, not noise — Rāst-Panjgāh and
+Māhūr share essentially the same pitch collection and differ in seyr and
+emphasis, which a pitch-class profile cannot see. Rāst-Panjgāh is also dastgah
+code 4, one of the disputed label groups, so noise may contribute; but the
+over-prediction mechanism explains the movement without it.
+
+### Instrument 4's deficit is not a data-volume problem
+
+It goes 50.8% to 56.4% — the same +5.7 every other instrument gains (except
+instrument 3, flat at -0.6). Training does not close the 15-point gap, so
+whatever that instrument does is invisible to a pitch-class profile.
+
+### If this ships
+
+The boosted model hits 100% in-fold on every feature set, so 67.6% is
+regularisation-limited, not capacity-limited. A plain multinomial logistic
+regression on the template log-probs alone reaches 66.8% grouped from 68.6%
+in-fold — nearly the same generalisation from a far simpler hypothesis, and one
+that degrades gracefully. That is the version to prefer.
+
+Two things to settle first: the group 1/3/4/5 labels with the Nava authors, and
+whether a ~4 point mean gain justifies giving up the system's current property
+that every answer is traceable to notated radif theory rather than to 39
+performers' habits.
