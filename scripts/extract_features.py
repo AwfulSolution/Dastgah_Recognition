@@ -25,6 +25,7 @@ from dastgah.core.audio import (
     transition_matrix,
 )
 from dastgah.core.forud import find_foruds
+from dastgah.core.seyr import window_histograms
 
 AUDIO_SUFFIXES = {".wav", ".flac", ".mp3", ".aiff", ".aif", ".m4a", ".ogg"}
 
@@ -69,11 +70,43 @@ def describe(path: Path, layout: str) -> dict:
     return {"truth": path.parent.name.lower()}
 
 
+def _duration(path: Path) -> float:
+    """Read a header rather than decoding; this gates whole files out."""
+    try:
+        import soundfile as sf
+
+        return float(sf.info(str(path)).duration)
+    except Exception:  # noqa: BLE001 - mp3 headers are not always readable
+        try:
+            import subprocess
+
+            out = subprocess.run(
+                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+                 "-of", "csv=p=0", str(path)],
+                capture_output=True, text=True, check=True,
+            )
+            return float(out.stdout.strip())
+        except Exception:  # noqa: BLE001
+            return float("inf")  # unknown length: let it through and decide later
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("name")
     parser.add_argument("root", type=Path)
     parser.add_argument("--layout", choices=("nava", "folder"), default="folder")
+    parser.add_argument(
+        "--window-seconds", type=float, default=20.0,
+        help="width of the time windows cached for progression scoring",
+    )
+    parser.add_argument(
+        "--min-seconds", type=float, default=0.0,
+        help=(
+            "skip recordings shorter than this. Progression needs a recording "
+            "long enough to actually traverse part of a seyr, and most corpora "
+            "here are excerpts"
+        ),
+    )
     parser.add_argument("--out", type=Path, default=Path("data/cache"))
     args = parser.parse_args()
 
@@ -87,6 +120,9 @@ def main() -> int:
 
     files = sorted(p for p in args.root.rglob("*") if p.suffix.lower() in AUDIO_SUFFIXES)
     print(f"{len(files)} audio files under {args.root}", flush=True)
+    if args.min_seconds > 0:
+        files = [p for p in files if _duration(p) >= args.min_seconds]
+        print(f"{len(files)} are at least {args.min_seconds:.0f}s long", flush=True)
     started = time.monotonic()
 
     for index, path in enumerate(files, start=1):
@@ -112,6 +148,11 @@ def main() -> int:
             "B": transition_matrix(events),
             "foruds": find_foruds(events, total_duration=track.duration),
             "dur": track.duration,
+            # Time-ordered windows, for scoring progression through the seyr.
+            "W": window_histograms(
+                events, seconds=args.window_seconds, duration=track.duration
+            ),
+            "window_seconds": args.window_seconds,
             **describe(path, args.layout),
         }
         if index % 10 == 0 or index == len(files):

@@ -17,7 +17,12 @@ from pathlib import Path
 
 import numpy as np
 
-from dastgah.core.analyze import DEFAULT_TEMPLATE_PATH, _blend_prior, _tonic_prior
+from dastgah.core.analyze import (
+    DEFAULT_GUSHEH_PATH,
+    DEFAULT_TEMPLATE_PATH,
+    _blend_prior,
+    _tonic_prior,
+)
 from dastgah.core.classify import DEFAULT_CONFIG, classify
 from dastgah.core.learn import (
     LEVELS,
@@ -26,6 +31,8 @@ from dastgah.core.learn import (
     fit,
     initial_parameters,
 )
+from dastgah.core.seyr import progression_scores
+from dastgah.radif.gusheh import load_gusheh_templates
 from dastgah.radif.templates import DASTGAHS_WITH_AUDIO, load_templates
 
 
@@ -50,6 +57,7 @@ def load_records(cache: Path, templates) -> list[dict]:
                 "log_prior": np.log(np.asarray(prior, dtype=float) + 1e-9)
                 if prior is not None
                 else None,
+                "W": r.get("W"),
                 "truth": r["truth"],
                 "artist": r.get("artist", "?"),
                 "instrument": r.get("instrument", "?"),
@@ -66,6 +74,10 @@ def main() -> int:
     parser.add_argument("--penalty", type=float, default=1.0)
     parser.add_argument("--max-iterations", type=int, default=400)
     parser.add_argument(
+        "--no-seyr", action="store_true",
+        help="leave the progression term out, for a like-for-like comparison",
+    )
+    parser.add_argument(
         "--balanced", action="store_true",
         help="weight each dastgah equally, denying the fit the option of "
              "writing off a class it cannot separate",
@@ -74,13 +86,22 @@ def main() -> int:
 
     templates = load_templates(args.templates)
     records = load_records(args.cache, templates)
+
+    # Rast-Panjgah is out of the answer space by design: its material is almost
+    # entirely borrowed, so it is excluded rather than scored. See the notes.
+    records = [r for r in records if r["truth"] in DASTGAHS_WITH_AUDIO]
     space = tuple(sorted(set(r["truth"] for r in records)))
+    gushehs = None if args.no_seyr else load_gusheh_templates(DEFAULT_GUSHEH_PATH)
+    windowed = sum(1 for r in records if r.get("W") is not None)
+    print(f"{windowed} of {len(records)} recordings carry time windows")
     print(f"{len(records)} recordings, {len({r['artist'] for r in records})} artists, "
           f"{len(space)} dastgahs")
 
     print("building design matrices...", end="", flush=True)
     started = time.monotonic()
-    design = build_design(records, templates, config=DEFAULT_CONFIG)
+    design = build_design(
+        records, templates, config=DEFAULT_CONFIG, gusheh_templates=gushehs
+    )
     print(f" {time.monotonic() - started:.0f}s")
 
     truth = [r["truth"] for r in records]
@@ -98,6 +119,19 @@ def main() -> int:
             config=DEFAULT_CONFIG,
         )
         template_pred[i] = dastgahs.index(result.ranked_dastgahs(space)[0][0])
+
+    # Progression on its own, with no pitch-content term at all: the most
+    # direct test of whether order carries the dastgah.
+    if gushehs is not None and np.any(design.progression != 0):
+        fold, _ = __import__(
+            "dastgah.core.learn", fromlist=["_mother_matrix"]
+        )._mother_matrix(design)
+        best = design.progression.reshape(len(records), -1).argmax(axis=1)
+        mode_of = best % design.n_modes
+        alone = np.array([dastgahs.index(design.mothers[m]) for m in mode_of])
+        print(f"progression alone (no pitch term): "
+              f"{100 * (alone == target).mean():.1f}%  "
+              f"chance {100 / len(dastgahs):.1f}%")
 
     counts = collections.Counter(artists)
     testable = sorted(a for a, n in counts.items() if n >= args.min_recordings)
@@ -125,11 +159,11 @@ def main() -> int:
         for artist in testable:
             test = artists == artist
             parameters = fit(
-                _subset(design, ~test), [t for t, keep in zip(truth, ~test) if keep],
+                design.select(~test), [t for t, keep in zip(truth, ~test) if keep],
                 level=level, penalty=args.penalty, config=DEFAULT_CONFIG,
                 max_iterations=args.max_iterations, balanced=args.balanced,
             )
-            probabilities, _ = dastgah_probabilities(parameters, _subset(design, test))
+            probabilities, _ = dastgah_probabilities(parameters, design.select(test))
             pred[test] = probabilities.argmax(axis=1)
             n_params = _count(level, design.n_modes)
         predictions[level] = pred
@@ -166,7 +200,7 @@ def main() -> int:
                 config=DEFAULT_CONFIG, max_iterations=args.max_iterations,
                 balanced=args.balanced)
     print(f"  alpha {whole.alpha:.3f}  transition {whole.transition_weight:.3f}  "
-          f"prior {whole.prior_weight:.3f}")
+          f"prior {whole.prior_weight:.3f}  progression {whole.progression_weight:.3f}")
     print(f"  {'mode':<18} {'sharpen':>8} {'bias':>8}")
     for index, key in enumerate(design.modes):
         print(f"  {key:<18} {whole.sharpen[index]:8.2f} {whole.bias[index]:8.2f}")
@@ -174,7 +208,7 @@ def main() -> int:
 
 
 def _count(level: str, n_modes: int) -> int:
-    n = 4
+    n = 5
     if level in ("bias", "sharpen", "profiles"):
         n += n_modes
     if level in ("sharpen", "profiles"):
@@ -182,19 +216,6 @@ def _count(level: str, n_modes: int) -> int:
     if level == "profiles":
         n += n_modes * 24
     return n
-
-
-def _subset(design, mask):
-    from dastgah.core.learn import Design
-
-    return Design(
-        rotated=design.rotated[mask],
-        transition=design.transition[mask],
-        log_prior=design.log_prior[mask],
-        log_theory=design.log_theory,
-        modes=design.modes,
-        mothers=design.mothers,
-    )
 
 
 if __name__ == "__main__":

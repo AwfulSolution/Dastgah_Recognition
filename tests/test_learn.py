@@ -144,3 +144,71 @@ def test_balanced_weighting_changes_the_fit(templates, records):
     plain = fit(design, truth, level="bias")
     balanced = fit(design, truth, level="bias", balanced=True)
     assert not np.allclose(plain.bias, balanced.bias)
+
+
+def test_progression_starts_neutral_and_can_be_learned(templates, records):
+    """A zero initial weight is what makes the fitted value a measurement.
+
+    With the term switched off at initialisation, an unfitted model is exactly
+    the hand-built classifier, and whatever the fit moves the weight to is the
+    contribution of order over and above pitch content.
+    """
+    from dastgah.core.analyze import DEFAULT_GUSHEH_PATH
+    from dastgah.core.seyr import progression_scores
+    from dastgah.radif.gusheh import load_gusheh_templates
+
+    gushehs = load_gusheh_templates(DEFAULT_GUSHEH_PATH)
+    assert initial_parameters(build_design(records, templates)).progression_weight == 0.0
+
+    # Give each record a traversal of its own dastgah's gushehs in radif order.
+    windowed = []
+    for record in records:
+        mode = next(
+            k for k in templates
+            if (MODAL_CLASSES_BY_KEY[k].parent or k) == record["truth"]
+            and len(gushehs.get(k, [])) >= 4
+        )
+        windowed.append(
+            {**record, "W": np.array([t.as_array() for t in gushehs[mode]])}
+        )
+
+    design = build_design(windowed, templates, gusheh_templates=gushehs)
+    assert np.any(design.progression != 0.0), "progression term never populated"
+
+    fitted = fit(design, [r["truth"] for r in windowed], level="weights")
+    assert fitted.progression_weight > 0.0
+
+
+def test_records_without_windows_score_zero_progression(templates, records):
+    from dastgah.core.analyze import DEFAULT_GUSHEH_PATH
+    from dastgah.radif.gusheh import load_gusheh_templates
+
+    gushehs = load_gusheh_templates(DEFAULT_GUSHEH_PATH)
+    design = build_design(records, templates, gusheh_templates=gushehs)
+    assert np.all(design.progression == 0.0)
+
+
+def test_select_carries_every_per_recording_field(templates, records):
+    """A grouped split must not quietly drop a term from one side of it."""
+    import dataclasses
+
+    from dastgah.core.analyze import DEFAULT_GUSHEH_PATH
+    from dastgah.radif.gusheh import load_gusheh_templates
+
+    gushehs = load_gusheh_templates(DEFAULT_GUSHEH_PATH)
+    windowed = [
+        {**r, "W": np.array([t.as_array() for t in gushehs["shur"]])} for r in records
+    ]
+    design = build_design(windowed, templates, gusheh_templates=gushehs)
+
+    mask = np.zeros(design.n, dtype=bool)
+    mask[::2] = True
+    part = design.select(mask)
+
+    per_record = {"rotated", "transition", "log_prior", "progression"}
+    assert per_record <= {f.name for f in dataclasses.fields(design)}
+    for name in per_record:
+        got, want = getattr(part, name), getattr(design, name)[mask]
+        assert got.shape == want.shape, name
+        assert np.array_equal(got, want), name
+    assert part.n == mask.sum()

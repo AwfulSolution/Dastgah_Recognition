@@ -901,3 +901,109 @@ Two things to settle first: the group 1/3/4/5 labels with the Nava authors, and
 whether a ~4 point mean gain justifies giving up the system's current property
 that every answer is traceable to notated radif theory rather than to 39
 performers' habits.
+
+## A progression scorer: built, measured, not shipped
+
+`dastgah/core/seyr.py` scores the *order* a performance visits a dastgah's
+gushehs in, which is the one thing a pitch histogram and a bigram matrix both
+discard. Windows of 20s are matched against a candidate dastgah's own gushehs,
+reduced to an expected position in its seyr (0 at the daramad, 1 at the last
+gusheh), and correlated against time.
+
+It demonstrably reads order and nothing else. Synthetic traversals in radif
+order score above 0.8 for all six in-scope dastgahs; the same material reversed
+scores below -0.8; shuffled, it collapses below 40% of the ordered score; and
+pooling a whole traversal into one repeated window scores exactly 0.0, so no
+pitch content leaks into it. The joint search recovers the right mode and the
+right tonic for every one.
+
+### It does not separate dastgahs
+
+Two corpora with recordings long enough to contain a traversal. Shajarian's
+complete radif — 16 in-scope performances, 2 to 30 minutes — and Nava's long
+tail, 218 in-scope recordings over three minutes by 30 artists.
+
+| | Shajarian (chance 16.7%) | Nava >3min (chance 14.3%) |
+| --- | --- | --- |
+| pitch content only | 50.0% | 88.1% |
+| progression only | 25.0% | 21.1% |
+| progression only, permutation-calibrated | 18.8% | — |
+
+Above chance, and nowhere near usable. The raw version first collapsed onto
+Shur in 9 of 16 Shajarian performances, which is a flexibility artifact rather
+than a signal: **Shur folds six modal templates and 68 gushehs, Mahur folds one
+and 34**, so a max over modes gives Shur six shots at a spurious correlation.
+A permutation null over window order removes the collapse — predictions spread
+across all six — without improving accuracy.
+
+Underneath the argmax the signal is real but non-specific:
+
+```
+mean rank of the true dastgah : 2.94   (chance 3.50)
+true in top 2                 : 50.0%  (chance 33.3%)
+mean z of the true dastgah    : +3.32
+mean z of the five others     : +3.00
+paired difference             : +0.32   Wilcoxon p=0.464, n=16
+```
+
+A performance does advance through its own dastgah's seyr — positive z in 88%
+of cases — and advances through every *other* dastgah's seyr almost as much.
+
+### A wrong explanation, recorded so it is not repeated
+
+The obvious reading is that this is a register detector: if seyr order tracked
+tessitura, then "position rises with time" would just mean the performer went
+up, which all radif does. **That is false.** The mean within-dastgah Spearman
+correlation between seyr position and tessitura is **+0.027**, and the
+trajectories disagree in sign — Homayun climbs +6.45 quarter-tones from its
+opening third to its closing third while Chahargah descends -4.96.
+
+What survives is the borrowing result one level up. It was never specific to
+Rast-Panjgah: 70-92% of *every* dastgah's gushehs have a >0.95 aligned-cosine
+twin elsewhere. A window's soft match therefore spreads across many dastgahs'
+gushehs, and whichever dastgah happens to carry a compatible ordering scores
+well. The order is informative about the performance and not yet attributable
+to a dastgah, because the things being ordered are not themselves
+distinguishable.
+
+### As a fitted term it earns nothing
+
+Wired into `learn.py` as a fourth additive term with its weight initialised at
+zero, so the fitted value measures what order adds after pitch content:
+
+    alpha 4.483   transition 7.032   prior 1.214   progression -0.239
+
+Slightly negative. Leave-one-artist-out accuracy is identical with the term and
+without it (84.1% / macro 83.0% either way). Not shipped: `seyr.py` is built,
+tested and unused by the default pipeline.
+
+## Length, not the model, was most of the problem
+
+The same untrained classifier, same parameters:
+
+| | recordings | accuracy | macro |
+| --- | --- | --- | --- |
+| all of Nava (median 75s) | 1,785 | 63.4% | 62.6% |
+| Nava over three minutes | 218 | **88.1%** | **87.4%** |
+
+Nothing was fitted to produce that. A 75-second excerpt does not contain enough
+of a performance to identify its mode, and most of the 63.4% that the fitted
+model improved on was an excerpt-length ceiling rather than a modelling failure.
+
+That also reverses where fitting helps. On the short-excerpt corpus, fitting 17
+parameters gained 4 points over theory. On the long recordings it **loses**
+four to five:
+
+| level | params | Nava >3min |
+| --- | --- | --- |
+| theory only | 0 | **88.1%** |
+| weights | 5 | 82.8% |
+| bias | 18 | 82.8% |
+| sharpen | 31 | 84.1% |
+| profiles | 343 | 84.1% |
+
+Leave-one-artist-out here holds out 151 of 218 recordings, leaving roughly 67
+to fit on, against a baseline already at 88%. Fitting helps where the baseline
+is weak and the excerpt is short; it overfits where the baseline is strong and
+the corpus is small. Neither regime recommends shipping a fitted model on this
+evidence.

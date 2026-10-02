@@ -52,6 +52,7 @@ from scipy.optimize import minimize
 from scipy.special import logsumexp
 
 from dastgah.core.classify import DEFAULT_CONFIG, ScoringConfig
+from dastgah.core.seyr import MIN_WINDOWS, progression_scores
 from dastgah.radif.templates import ModalTemplate
 from dastgah.theory import MODAL_CLASSES_BY_KEY, QUARTER_TONES_PER_OCTAVE
 
@@ -75,6 +76,8 @@ class Design:
     transition: np.ndarray
     #: (n, 24) log tonic prior.
     log_prior: np.ndarray
+    #: (n, 24, M) progression through the seyr; zeros when no windows were cached.
+    progression: np.ndarray
     #: (M, 24) log of the notated radif profile, per mode.
     log_theory: np.ndarray
     #: Mode keys, indexing axis M.
@@ -86,6 +89,23 @@ class Design:
     def n(self) -> int:
         return self.rotated.shape[0]
 
+    def select(self, mask: "np.ndarray") -> "Design":
+        """The same design over a subset of recordings, for grouped splits.
+
+        A method rather than a helper beside the caller: every per-recording
+        array has to be carried, and a field added later must not be silently
+        dropped from one copy.
+        """
+        return Design(
+            rotated=self.rotated[mask],
+            transition=self.transition[mask],
+            log_prior=self.log_prior[mask],
+            progression=self.progression[mask],
+            log_theory=self.log_theory,
+            modes=self.modes,
+            mothers=self.mothers,
+        )
+
     @property
     def n_modes(self) -> int:
         return len(self.modes)
@@ -96,6 +116,7 @@ def build_design(
     templates: dict[str, ModalTemplate],
     *,
     config: ScoringConfig = DEFAULT_CONFIG,
+    gusheh_templates: "dict[str, list] | None" = None,
 ) -> Design:
     """Assemble the fixed terms for a corpus.
 
@@ -103,6 +124,11 @@ def build_design(
     carry ``B`` (24x24 absolute bigrams) and ``log_prior`` (24 bins). Missing
     transitions contribute nothing rather than failing, which matches
     :func:`dastgah.core.classify.classify`.
+
+    Passing ``gusheh_templates`` adds the progression term for any record
+    carrying ``W``, a (windows, 24) grid in time order. Records without it score
+    zero there and are decided on pitch content alone, so a corpus of excerpts
+    costs nothing but gains nothing.
     """
     modes = list(templates)
     mothers = [MODAL_CLASSES_BY_KEY[k].parent or k for k in modes]
@@ -120,6 +146,7 @@ def build_design(
     rotated = np.empty((n, N, N))
     transition = np.zeros((n, N, len(modes)))
     log_prior = np.empty((n, N))
+    progression = np.zeros((n, N, len(modes)))
 
     shifts = np.arange(N)
     for i, record in enumerate(records):
@@ -143,10 +170,17 @@ def build_design(
             np.log(histogram + 1e-9) if prior is None else np.asarray(prior, dtype=float)
         )
 
+        windows = record.get("W")
+        if gusheh_templates is not None and windows is not None:
+            grid = np.asarray(windows, dtype=float)
+            if grid.ndim == 2 and grid.shape[0] >= MIN_WINDOWS:
+                progression[i] = progression_scores(grid, gusheh_templates, modes)
+
     return Design(
         rotated=rotated,
         transition=transition,
         log_prior=log_prior,
+        progression=progression,
         log_theory=log_theory,
         modes=modes,
         mothers=mothers,
@@ -169,6 +203,10 @@ class Parameters:
     alpha: float
     transition_weight: float
     prior_weight: float
+    #: Weight on progression through the seyr. Starts at zero, so a fitted
+    #: value is a direct measurement of how much the order of a performance
+    #: adds once its pitch content has been accounted for.
+    progression_weight: float
     #: Per-mode exponent on the theory profile; scalar `sharpen` broadcast at init.
     sharpen: np.ndarray
     #: Per-mode score offset.
@@ -200,6 +238,7 @@ def initial_parameters(
         alpha=1.0 / config.temperature,
         transition_weight=config.transition_weight / config.temperature,
         prior_weight=config.tonic_prior_weight / config.temperature,
+        progression_weight=0.0,
         sharpen=np.full(m, float(config.sharpen)),
         bias=np.zeros(m),
         deviation=np.zeros((m, N)),
@@ -218,7 +257,8 @@ def _mother_matrix(design: Design) -> tuple[np.ndarray, list[str]]:
 
 def _pack(parameters: Parameters, level: str) -> np.ndarray:
     pieces = [
-        np.array([parameters.alpha, parameters.transition_weight, parameters.prior_weight]),
+        np.array([parameters.alpha, parameters.transition_weight,
+                  parameters.prior_weight, parameters.progression_weight]),
         np.array([float(parameters.sharpen[0])]),
     ]
     if level in ("bias", "sharpen", "profiles"):
@@ -232,9 +272,9 @@ def _pack(parameters: Parameters, level: str) -> np.ndarray:
 
 def _unpack(vector: np.ndarray, level: str, design: Design) -> Parameters:
     m = design.n_modes
-    alpha, w_t, w_p = vector[0:3]
-    shared = vector[3]
-    cursor = 4
+    alpha, w_t, w_p, w_s = vector[0:4]
+    shared = vector[4]
+    cursor = 5
 
     bias = np.zeros(m)
     if level in ("bias", "sharpen", "profiles"):
@@ -254,6 +294,7 @@ def _unpack(vector: np.ndarray, level: str, design: Design) -> Parameters:
         alpha=float(alpha),
         transition_weight=float(w_t),
         prior_weight=float(w_p),
+        progression_weight=float(w_s),
         sharpen=sharpen,
         bias=bias,
         deviation=deviation,
@@ -269,6 +310,7 @@ def _scores(parameters: Parameters, design: Design) -> tuple[np.ndarray, np.ndar
         parameters.alpha * profile_term
         + parameters.transition_weight * design.transition
         + parameters.prior_weight * design.log_prior[:, :, None]
+        + parameters.progression_weight * design.progression
         + parameters.bias[None, None, :]
     )
     return scores, log_profiles
@@ -329,6 +371,7 @@ def _objective(
     )
     d_transition = float(np.sum(upstream * design.transition))
     d_prior = float(np.sum(upstream * design.log_prior[:, :, None]))
+    d_progression = float(np.sum(upstream * design.progression))
     d_bias = upstream.sum(axis=(0, 1))
 
     d_log_profiles = parameters.alpha * np.einsum("itm,itd->md", upstream, design.rotated)
@@ -343,7 +386,7 @@ def _objective(
         d_deviation += 2.0 * penalty * parameters.deviation
 
     gradient = [
-        np.array([d_alpha, d_transition, d_prior]),
+        np.array([d_alpha, d_transition, d_prior, d_progression]),
         np.array([d_sharpen.sum()]),
     ]
     if level in ("bias", "sharpen", "profiles"):
