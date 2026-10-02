@@ -272,6 +272,52 @@ def _mother_matrix(design: Design) -> tuple[np.ndarray, list[str]]:
     return fold, dastgahs
 
 
+def _frozen_modes(design: Design, truth: "list[str]") -> np.ndarray:
+    """(M,) mask of modes the training labels say nothing about.
+
+    A corpus labelled only with dastgahs carries no evidence about how an avaz
+    template should be weighted, yet the fit still has a free parameter for it,
+    and maximum likelihood will happily drive that parameter wherever suppresses
+    the noise the template absorbs. On Nava, whose seven classes are all
+    dastgahs, that costs 34 points on avaz audio elsewhere while gaining 13 on
+    dastgah audio. Such modes stay at the value theory gives them.
+
+    Membership is by the mode's own label, not its mother: Shur appearing in the
+    labels says nothing about Dashti.
+
+    Principled, and it measured worse: freezing cost 10.6 points transferring
+    Nava to KDC against 8.5 for not freezing. The reason is that the exponent is
+    not separable per mode. A fit moves all six observed dastgahs from 3.0 to
+    roughly 1.85 while a frozen avaz stays at 3.0, and a sharper profile is more
+    selective than a flatter one, so the two groups' scores stop being on a
+    comparable scale. Tying an avaz to its mother's fitted values, rather than to
+    theory's, is the shape a fix would have to take. Off by default.
+    """
+    observed = set(truth)
+    return np.array([key not in observed for key in design.modes])
+
+
+def _bounds(level: str, design: Design, anchor: np.ndarray, frozen: np.ndarray):
+    """Pin the frozen modes' parameters to theory, leaving the rest free."""
+    if not frozen.any():
+        return None
+    keep = np.ones(anchor.size, dtype=bool)
+    m = design.n_modes
+    cursor = 5
+    if level in ("bias", "sharpen", "profiles"):
+        keep[cursor : cursor + m] = ~frozen
+        cursor += m
+    if level in ("sharpen", "profiles"):
+        keep[cursor : cursor + m] = ~frozen
+        cursor += m
+    if level == "profiles":
+        keep[cursor : cursor + m * N] = ~np.repeat(frozen, N)
+    return [
+        (None, None) if free else (float(value), float(value))
+        for free, value in zip(keep, anchor, strict=True)
+    ]
+
+
 def _pack(parameters: Parameters, level: str) -> np.ndarray:
     pieces = [
         np.array([parameters.alpha, parameters.transition_weight,
@@ -434,13 +480,16 @@ def fit(
     config: ScoringConfig = DEFAULT_CONFIG,
     max_iterations: int = 400,
     balanced: bool = False,
+    freeze_unobserved: bool = False,
 ) -> Parameters:
     """Maximise the likelihood of the labelled dastgah, tonic latent.
 
     ``penalty`` is the L2 pull of every free parameter toward the value theory
     gives it. ``balanced`` weights each dastgah equally rather than each
     recording, which denies the fit the option of writing off a class that is
-    hard to separate.
+    hard to separate. ``freeze_unobserved`` holds at theory the per-mode
+    parameters of any mode whose own label never appears in ``truth``. It
+    defaults off because it measured *worse*: see :func:`_frozen_modes`.
     """
     if level not in LEVELS:
         raise ValueError(f"level must be one of {LEVELS}, got {level!r}")
@@ -457,12 +506,18 @@ def fit(
         weights /= weights.sum()
 
     start = _pack(initial_parameters(design, config), level)
+    frozen = (
+        _frozen_modes(design, list(truth))
+        if freeze_unobserved
+        else np.zeros(design.n_modes, dtype=bool)
+    )
     result = minimize(
         _objective,
         start,
         args=(level, design, target, penalty, weights, start.copy()),
         jac=True,
         method="L-BFGS-B",
+        bounds=_bounds(level, design, start, frozen),
         options={"maxiter": max_iterations},
     )
     return _unpack(result.x, level, design)

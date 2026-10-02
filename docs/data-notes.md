@@ -1119,3 +1119,70 @@ beside the point.
 **Macro average hid it.** Accuracy fell 8.5 points while the macro average
 *rose* 3.3, because the fit helps the rare classes and destroys the dominant
 one. Reporting macro alone would have called this a success.
+
+## Freezing the modes a corpus never names: principled, and worse
+
+The transfer failure decomposes cleanly. On KDC's 106 dastgah-labelled
+recordings a Nava fit goes **50.0% to 63.2%** at `sharpen`; on its 83
+avaz-labelled ones it goes **67.6% to 33.7%**. So the fit learns something real
+about the modes and destroys the avaz calibration Nava cannot speak to.
+
+Holding every mode the training labels never name at theory's values should fix
+that. It made things worse: **-10.6 points** transferring to full KDC, against
+-8.5 for not freezing.
+
+The exponent is not separable per mode. A fit moves all six observed dastgahs
+from 3.0 to roughly 1.85 and leaves the six frozen avazes at 3.0, and since a
+sharper profile is more selective than a flatter one, the two groups' scores stop
+being on a comparable scale. Tying an avaz to its *mother's fitted* values rather
+than to theory's is the shape a fix would have to take. `freeze_unobserved`
+defaults off, with the measurement recorded on the function.
+
+## Those fitted exponents do not imply a better global one
+
+All six landing near 1.85 looks like a single miscalibrated constant rather than
+six modal properties, and `sharpen=3.0` was chosen while Rast-Panjgah was still
+answerable -- a broad template that attracts everything being exactly what needs
+heavy sharpening to suppress. KDC and IRMA had both preferred 2.0 earlier.
+
+Swept over the six-class answer space:
+
+| corpus | 1.25 | 1.5 | 1.75 | 2.0 | 2.25 | 2.5 | 3.0 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| nava (1568) | 59.5 | 64.5 | 69.0 | 71.2 | 72.6 | 73.3 | **74.9** |
+| kdc (189) | 57.1 | 61.9 | **64.6** | 61.4 | 58.2 | 56.6 | 57.7 |
+| shajarian radif (16) | 62.5 | **68.8** | 56.2 | 50.0 | 50.0 | 50.0 | 50.0 |
+| nava >3min (218) | 69.3 | 75.7 | 80.7 | 81.2 | 84.4 | 87.6 | **89.0** |
+| pooled by size | 60.4 | 65.5 | 69.8 | 71.2 | 72.3 | 73.1 | **74.6** |
+
+Refuted. Nava rises monotonically to 3.0 and the long recordings reach 89.0%
+there. The inference was wrong because the exponent is not interpretable in
+isolation: `alpha` scales the whole profile term and the same fit raised it from
+2.0 to 4.483, so a lower exponent and a higher scale are partly interchangeable.
+Reading one fitted parameter without its coupled partner is the error.
+
+**sharpen stays 3.0.** The corpus disagreement is unchanged and already recorded
+above: the two smallest corpora prefer a lower exponent, the two largest a higher
+one.
+
+## What this line of work shipped
+
+Nothing beyond what was already default. `analyze()` already answers over the six
+dastgahs, so the 74.9% is what the library does today.
+
+| finding | evidence | status |
+| --- | --- | --- |
+| drop Rast-Panjgah from the answer space | 63.4% to 74.9%, nothing fitted | shipped (already the default) |
+| restrict the answer space at design time | train/test agreement; inference unchanged | shipped, training only |
+| fitted per-mode parameters, dastgah audio | KDC 50.0% to 63.2% | real, not shipped |
+| fitted per-mode parameters, avaz audio | KDC 67.6% to 33.7% | blocks shipping |
+| freeze modes the labels never name | -10.6 vs -8.5 | refuted |
+| refit the four global scalars | nothing, on four corpora | dead |
+| lower the global exponent | refuted by the sweep above | dead |
+| progression through the seyr | fitted weight -0.239 | dead |
+
+`learn.py` is what diagnosed all of it and `transfer_test.py` is the gate any
+future change should pass: within-corpus cross-validation chose `bias` over
+`sharpen` on Nava (78.4% against 77.7%) and cross-corpus transfer chose the
+opposite (63.2% against 61.3%), so corpus-internal model selection is not
+sufficient here.

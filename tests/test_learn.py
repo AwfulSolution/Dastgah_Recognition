@@ -279,3 +279,52 @@ def test_the_penalty_gradient_matches_finite_differences(templates, records, lev
         probe[index] -= 2 * step
         down, _ = _objective(probe, level, design, target, 0.37, None, anchor)
         assert gradient[index] == pytest.approx((up - down) / (2 * step), rel=2e-4, abs=2e-7)
+
+
+def test_modes_the_labels_never_mention_stay_at_theory(templates, records):
+    """A corpus of dastgah labels must not move its avazes' parameters.
+
+    Maximum likelihood will drive an unconstrained avaz parameter wherever
+    suppresses the noise its template absorbs, which is correct for a corpus
+    containing no avaz and wrong for every other corpus.
+    """
+    from dastgah.core.learn import _frozen_modes
+
+    design = build_design(records, templates)
+    dastgah_only = [MODAL_CLASSES_BY_KEY[k].parent or k for k in design.modes]
+    truth = [dastgah_only[i % len(dastgah_only)] for i in range(design.n)]
+
+    frozen = _frozen_modes(design, truth)
+    avazes = [i for i, k in enumerate(design.modes) if MODAL_CLASSES_BY_KEY[k].parent]
+    assert avazes, "fixture has no avaz templates to freeze"
+    assert frozen[avazes].all(), "an avaz was left free by labels that never name it"
+
+    theory = initial_parameters(design)
+    fitted = fit(design, truth, level="sharpen", penalty=0.0, freeze_unobserved=True)
+    assert np.allclose(fitted.bias[frozen], theory.bias[frozen], atol=1e-8)
+    assert np.allclose(fitted.sharpen[frozen], theory.sharpen[frozen], atol=1e-8)
+    # The observed modes must still have moved, or the freeze froze everything.
+    assert not np.allclose(fitted.bias[~frozen], theory.bias[~frozen])
+
+
+def test_freezing_is_off_by_default_because_it_measured_worse(templates, records):
+    from dastgah.core.learn import _frozen_modes
+
+    design = build_design(records, templates)
+    dastgah_only = [MODAL_CLASSES_BY_KEY[k].parent or k for k in design.modes]
+    truth = [dastgah_only[i % len(dastgah_only)] for i in range(design.n)]
+    frozen = _frozen_modes(design, truth)
+
+    theory = initial_parameters(design)
+    loose = fit(design, truth, level="bias", penalty=0.0)
+    assert not np.allclose(loose.bias[frozen], theory.bias[frozen])
+    held = fit(design, truth, level="bias", penalty=0.0, freeze_unobserved=True)
+    assert np.allclose(held.bias[frozen], theory.bias[frozen], atol=1e-8)
+
+
+def test_a_corpus_naming_every_mode_freezes_nothing(templates, records):
+    from dastgah.core.learn import _frozen_modes
+
+    design = build_design(records, templates)
+    frozen = _frozen_modes(design, list(design.modes))
+    assert not frozen.any()
