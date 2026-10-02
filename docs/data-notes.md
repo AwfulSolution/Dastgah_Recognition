@@ -1007,3 +1007,115 @@ to fit on, against a baseline already at 88%. Fitting helps where the baseline
 is weak and the excerpt is short; it overfits where the baseline is strong and
 the corpus is small. Neither regime recommends shipping a fitted model on this
 evidence.
+
+## Dropping Rast-Panjgah is worth 11.5 points, before any fitting
+
+Restricting the answer space to the six dastgahs that remain in scope, with
+avazes still folded into their mothers, takes the untrained classifier from
+**63.4% to 74.9%** over 1,568 Nava recordings by 37 artists. Nothing was fitted
+to produce that. It is the largest single improvement in the project, and it
+came from removing a class the representation cannot hold rather than from any
+modelling.
+
+The restriction is now applied when the design is built rather than when results
+are reported. That matters for training and not for inference: renormalising
+after the softmax is identical to restricting the softmax, so predictions are
+unchanged, but a mode left in the objective that can never be the answer trains
+the fit to push probability away from it -- work inference discards for free.
+
+## Shrinkage toward theory, and what the extra capacity is worth
+
+Every free parameter is now pulled toward the value the notated radif gives it,
+so the penalty interpolates between the hand-built classifier at one end and an
+unconstrained fit at the other. A test asserts the limit: at penalty 1e6 the fit
+returns theory's parameters to 1e-3.
+
+Artist-grouped 5-fold over the 1,568, against 74.9% for theory alone:
+
+| level | params | 0 | 0.003 | 0.01 | 0.03 | 0.1 | 0.3 | 1 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| weights | 5 | 74.7 | 74.7 | 74.6 | 74.6 | 74.4 | 74.6 | 74.8 |
+| bias | 18 | **78.4** | 77.4 | 76.7 | 75.6 | 74.7 | 74.7 | 74.9 |
+| sharpen | 31 | 77.7 | 76.8 | 76.9 | 76.8 | 75.8 | 75.4 | 74.9 |
+| profiles | 343 | 76.3 | 77.4 | 76.9 | 77.3 | 75.6 | 75.4 | 75.0 |
+
+Two expectations were wrong. Shrinkage does not rescue the larger models --
+`sharpen` and `profiles` peak at or near zero penalty and never beat the
+18-parameter `bias` model, so their extra capacity is not being wasted by
+overfitting, it simply is not useful. And `bias` wants *no* shrinkage: 1,568
+recordings determine 13 per-mode offsets well enough that pulling them toward
+theory only destroys information.
+
+Refitting the four global scalars is worth nothing, for the third corpus running.
+
+Leave-one-artist-out at `bias`, penalty 0, over the 20 artists with at least 15
+recordings (1,484 recordings): **74.3% to 77.8%**, macro 73.9% to 77.6%, better
+on 15 of 20 unseen artists. Nava gains 11.3 and Chahargah 9.2; only Mahur loses,
+from 86.5%.
+
+## That gain does not transfer, and not for the reason it first appears
+
+Fit on Nava, test on KDC -- 189 in-scope recordings, different performers,
+different provenance:
+
+| | accuracy | macro |
+| --- | --- | --- |
+| theory only | **57.7%** | 51.7% |
+| transferred | 49.2% | 55.0% |
+
+Eight and a half points worse. The fitted biases say why:
+
+    bayat_e_tork  -12.61    afshari  -12.38    abuata  -3.79
+
+The fit crushes Shur's avaz templates, because **Nava contains no
+avaz-labelled recordings at all** -- its seven classes are all dastgahs. Within
+Nava, any probability an avaz template absorbs is noise, and suppressing it is
+correct. In KDC the avaz templates are what detects avaz recordings, and those
+are 83 of 202. Shur falls 26.4 points, from 65.5% to 39.1%.
+
+So the avaz biases are not merely unreliable when fitted on Nava, they are
+**unidentifiable** from it: the corpus carries no evidence about them, and
+whatever the fit puts there is an artifact of the labels' absence.
+
+That is the obvious reading, and a control refutes it as the whole story. Every
+configuration loses on KDC, including one with no per-mode bias at all:
+
+| configuration | params | KDC | vs theory |
+| --- | --- | --- | --- |
+| theory only | 0 | **57.7%** | - |
+| bias, no shrinkage | 18 | 49.2% | -8.5 |
+| bias, class-balanced | 18 | 49.7% | -7.9 |
+| sharpen | 31 | 51.9% | -5.8 |
+| **weights only** | **5** | **50.8%** | **-6.9** |
+| bias, penalty 0.1 | 18 | 55.6% | -2.1 |
+
+`weights` is four global scalars and a progression weight -- no class prior
+anywhere -- and it still loses 6.9 points. The damage also falls monotonically as
+the penalty pulls the fit back toward theory, reaching zero at full shrinkage.
+So the honest statement is broader than the avaz story: **Nava-optimal
+parameters are KDC-suboptimal across the board**, and the avaz biases are the
+largest single contributor rather than the only one.
+
+One thing does transfer, in every configuration tested:
+
+| | theory | bias | sharpen | weights | balanced |
+| --- | --- | --- | --- | --- | --- |
+| nava | 21.1% | 42.1% | 42.1% | 47.4% | 52.6% |
+| shur | 65.5% | 39.1% | 41.4% | 54.0% | 36.8% |
+
+Nava gains 21 to 32 points on a different corpus under every fit, which is
+signal rather than artifact. The accuracy loss is carried almost entirely by
+Shur, which is 87 of KDC's 189 in-scope recordings and nearly all folded avaz.
+
+Two lessons worth keeping separate from the numbers:
+
+**Leave-one-artist-out does not test what broke here.** It controls for the
+performer. What differs between Nava and KDC is the label distribution and the
+recording conditions, which no amount of performer-grouping within one corpus
+can expose. The earlier stacking failure was the same shape with a different
+mechanism, and the argument that 20 artists made this case stronger was true and
+beside the point.
+
+**Macro average hid it.** Accuracy fell 8.5 points while the macro average
+*rose* 3.3, because the fit helps the rare classes and destroys the dominant
+one. Reporting macro alone would have called this a success.

@@ -45,6 +45,7 @@ not whether training helps but how little of the theory has to be given up:
 
 from __future__ import annotations
 
+from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -117,6 +118,7 @@ def build_design(
     *,
     config: ScoringConfig = DEFAULT_CONFIG,
     gusheh_templates: "dict[str, list] | None" = None,
+    answer_space: "Iterable[str] | None" = None,
 ) -> Design:
     """Assemble the fixed terms for a corpus.
 
@@ -129,9 +131,24 @@ def build_design(
     carrying ``W``, a (windows, 24) grid in time order. Records without it score
     zero there and are decided on pitch content alone, so a corpus of excerpts
     costs nothing but gains nothing.
+
+    ``answer_space`` restricts which dastgahs may be answered, dropping the
+    modal templates that fold into anything else. This matters for training and
+    not only for reporting: the loss is the probability of the true dastgah
+    under a softmax over the surviving hypotheses, so leaving an unanswerable
+    mode in place would train the fit to push probability away from it while
+    inference renormalises it away for free. Avazes of a kept dastgah are kept,
+    because folding an avaz into its mother beats dropping it.
     """
     modes = list(templates)
     mothers = [MODAL_CLASSES_BY_KEY[k].parent or k for k in modes]
+    if answer_space is not None:
+        allowed = set(answer_space)
+        keep = [i for i, mother in enumerate(mothers) if mother in allowed]
+        if not keep:
+            raise ValueError(f"no template folds into {sorted(allowed)}")
+        modes = [modes[i] for i in keep]
+        mothers = [mothers[i] for i in keep]
 
     log_theory = np.empty((len(modes), N))
     log_transitions = np.zeros((len(modes), N, N))
@@ -342,6 +359,7 @@ def _objective(
     target: np.ndarray,
     penalty: float,
     weights: np.ndarray | None = None,
+    anchor: np.ndarray | None = None,
 ) -> tuple[float, np.ndarray]:
     """Weighted negative log-likelihood of the true dastgah, and its gradient.
 
@@ -349,6 +367,13 @@ def _objective(
     optionally reweights recordings; passing the inverse class frequency makes
     every dastgah count equally, which changes whether giving a weak class up
     is a good trade.
+
+    ``anchor`` is the parameter vector every free parameter is shrunk toward --
+    theory's own values. Shrinking all of them rather than only the profile
+    deviations is the point of a theory-initialised fit: the exponent and the
+    per-mode offsets are as capable of overfitting 20 artists as the profiles
+    are, and at ``penalty`` large enough the fit returns the hand-built
+    classifier rather than something unrelated to it.
     """
     parameters = _unpack(vector, level, design)
     scores, log_profiles = _scores(parameters, design)
@@ -381,10 +406,6 @@ def _objective(
     d_sharpen = (d_a * design.log_theory).sum(axis=1)
     d_deviation = d_a.copy()
 
-    if penalty and level == "profiles":
-        loss += penalty * float(np.sum(parameters.deviation**2))
-        d_deviation += 2.0 * penalty * parameters.deviation
-
     gradient = [
         np.array([d_alpha, d_transition, d_prior, d_progression]),
         np.array([d_sharpen.sum()]),
@@ -395,7 +416,13 @@ def _objective(
         gradient.append(d_sharpen)
     if level == "profiles":
         gradient.append(d_deviation.ravel())
-    return loss, np.concatenate(gradient)
+    packed = np.concatenate(gradient)
+
+    if penalty and anchor is not None:
+        offset = vector - anchor
+        loss += penalty * float(np.dot(offset, offset))
+        packed = packed + 2.0 * penalty * offset
+    return loss, packed
 
 
 def fit(
@@ -410,10 +437,10 @@ def fit(
 ) -> Parameters:
     """Maximise the likelihood of the labelled dastgah, tonic latent.
 
-    ``penalty`` is the L2 pull of learned profiles toward the notated radif, and
-    only bites at ``level="profiles"``. ``balanced`` weights each dastgah
-    equally rather than each recording, which denies the fit the option of
-    writing off a class that is hard to separate.
+    ``penalty`` is the L2 pull of every free parameter toward the value theory
+    gives it. ``balanced`` weights each dastgah equally rather than each
+    recording, which denies the fit the option of writing off a class that is
+    hard to separate.
     """
     if level not in LEVELS:
         raise ValueError(f"level must be one of {LEVELS}, got {level!r}")
@@ -433,7 +460,7 @@ def fit(
     result = minimize(
         _objective,
         start,
-        args=(level, design, target, penalty, weights),
+        args=(level, design, target, penalty, weights, start.copy()),
         jac=True,
         method="L-BFGS-B",
         options={"maxiter": max_iterations},

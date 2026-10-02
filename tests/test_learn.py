@@ -175,7 +175,9 @@ def test_progression_starts_neutral_and_can_be_learned(templates, records):
     design = build_design(windowed, templates, gusheh_templates=gushehs)
     assert np.any(design.progression != 0.0), "progression term never populated"
 
-    fitted = fit(design, [r["truth"] for r in windowed], level="weights")
+    # penalty=0: the shrinkage toward theory now pulls this weight back to its
+    # zero anchor, so measuring the term's own contribution needs it switched off.
+    fitted = fit(design, [r["truth"] for r in windowed], level="weights", penalty=0.0)
     assert fitted.progression_weight > 0.0
 
 
@@ -212,3 +214,68 @@ def test_select_carries_every_per_recording_field(templates, records):
         assert got.shape == want.shape, name
         assert np.array_equal(got, want), name
     assert part.n == mask.sum()
+
+
+def test_answer_space_drops_unanswerable_modes_but_keeps_avazes(templates, records):
+    """Training and inference must agree on which hypotheses exist.
+
+    An unanswerable mode left in the design would train the fit to push
+    probability away from it, work that inference discards by renormalising.
+    """
+    from dastgah.radif.templates import DASTGAHS_WITH_AUDIO
+
+    full = build_design(records, templates)
+    assert "rast_panjgah" in full.modes
+
+    restricted = build_design(records, templates, answer_space=DASTGAHS_WITH_AUDIO)
+    assert "rast_panjgah" not in restricted.modes
+    assert set(restricted.mothers) == set(DASTGAHS_WITH_AUDIO)
+    # Shur's avazes survive, since folding beats dropping.
+    assert "dashti" in restricted.modes
+    assert restricted.n_modes < full.n_modes
+
+    probabilities, dastgahs = dastgah_probabilities(
+        initial_parameters(restricted), restricted
+    )
+    assert dastgahs == sorted(DASTGAHS_WITH_AUDIO)
+    assert np.allclose(probabilities.sum(axis=1), 1.0)
+
+
+def test_an_empty_answer_space_is_refused(templates, records):
+    with pytest.raises(ValueError, match="no template folds into"):
+        build_design(records, templates, answer_space=["not_a_dastgah"])
+
+
+def test_a_large_penalty_returns_the_hand_built_classifier(templates, records):
+    """Shrinkage toward theory must actually reach theory in the limit.
+
+    This is what makes the penalty interpretable: it interpolates between the
+    notated radif and the fitted model rather than between the fitted model and
+    something arbitrary.
+    """
+    design = build_design(records, templates)
+    truth = [r["truth"] for r in records]
+    theory = _pack(initial_parameters(design), "profiles")
+    fitted = _pack(fit(design, truth, level="profiles", penalty=1e6), "profiles")
+    assert np.allclose(fitted, theory, atol=1e-3)
+
+
+@pytest.mark.parametrize("level", LEVELS)
+def test_the_penalty_gradient_matches_finite_differences(templates, records, level):
+    design = build_design(records, templates)
+    _, dastgahs = _mother_matrix(design)
+    target = np.array([dastgahs.index(r["truth"]) for r in records])
+
+    rng = np.random.default_rng(7)
+    anchor = _pack(initial_parameters(design), level)
+    point = anchor + 0.1 * rng.standard_normal(anchor.shape)
+    _, gradient = _objective(point, level, design, target, 0.37, None, anchor)
+
+    step = 1e-6
+    for index in rng.choice(point.size, size=min(10, point.size), replace=False):
+        probe = point.copy()
+        probe[index] += step
+        up, _ = _objective(probe, level, design, target, 0.37, None, anchor)
+        probe[index] -= 2 * step
+        down, _ = _objective(probe, level, design, target, 0.37, None, anchor)
+        assert gradient[index] == pytest.approx((up - down) / (2 * step), rel=2e-4, abs=2e-7)

@@ -95,12 +95,13 @@ def main() -> int:
     windowed = sum(1 for r in records if r.get("W") is not None)
     print(f"{windowed} of {len(records)} recordings carry time windows")
     print(f"{len(records)} recordings, {len({r['artist'] for r in records})} artists, "
-          f"{len(space)} dastgahs")
+          f"{len(space)} dastgahs: {', '.join(space)}")
 
     print("building design matrices...", end="", flush=True)
     started = time.monotonic()
     design = build_design(
-        records, templates, config=DEFAULT_CONFIG, gusheh_templates=gushehs
+        records, templates, config=DEFAULT_CONFIG, gusheh_templates=gushehs,
+        answer_space=DASTGAHS_WITH_AUDIO,
     )
     print(f" {time.monotonic() - started:.0f}s")
 
@@ -118,7 +119,9 @@ def main() -> int:
             tonic_prior=np.exp(r["log_prior"]) if r["log_prior"] is not None else None,
             config=DEFAULT_CONFIG,
         )
-        template_pred[i] = dastgahs.index(result.ranked_dastgahs(space)[0][0])
+        template_pred[i] = dastgahs.index(
+            result.ranked_dastgahs(DASTGAHS_WITH_AUDIO)[0][0]
+        )
 
     # Progression on its own, with no pitch-content term at all: the most
     # direct test of whether order carries the dastgah.
