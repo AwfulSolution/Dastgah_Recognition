@@ -104,6 +104,15 @@ class GushehTemplate:
     tessitura: float          # -12..+12, where the melody sits around the tonic
     tessitura_spread: float
     n_notes: int
+    #: Position in the dastgah's seyr, 0 for the daramad that opens it.
+    #:
+    #: The radif is an ordered traversal, not a set: the daramad establishes the
+    #: mode, intermediate gushehs climb away from it, and a forud returns. That
+    #: order is the seyr, and for a dastgah whose gushehs are largely borrowed
+    #: from its neighbours it is most of what identifies it. The Radif Corpus
+    #: carries the order in its filenames ("01 - Daramad.csv"); it used to be
+    #: discarded here by serialising each dastgah's gushehs alphabetically.
+    seyr_index: int = -1
 
     def as_array(self) -> np.ndarray:
         return np.asarray(self.profile, dtype=float)
@@ -117,7 +126,9 @@ def _smooth(values: np.ndarray, epsilon: float = 1e-3) -> np.ndarray:
     return smoothed / smoothed.sum()
 
 
-def build_gusheh_template(gusheh: Gusheh, tonic_pc: int) -> GushehTemplate:
+def build_gusheh_template(
+    gusheh: Gusheh, tonic_pc: int, seyr_index: int = -1
+) -> GushehTemplate:
     quarter = np.array([n.quarter_tones for n in gusheh.notes], dtype=float)
     durations = np.array([n.duration for n in gusheh.notes], dtype=float)
 
@@ -135,21 +146,25 @@ def build_gusheh_template(gusheh: Gusheh, tonic_pc: int) -> GushehTemplate:
         tessitura=round(tessitura(quarter, durations, tonic_pc), 3),
         tessitura_spread=round(spread, 3),
         n_notes=len(gusheh.notes),
+        seyr_index=seyr_index,
     )
 
 
 def build_gusheh_templates(
     corpus: list[Gusheh], mode_tonics: dict[str, int]
 ) -> dict[str, list[GushehTemplate]]:
-    """Build a template per gusheh, grouped by dastgah."""
+    """Build a template per gusheh, grouped by dastgah and kept in seyr order.
+
+    ``corpus`` must arrive in radif order, which
+    :func:`dastgah.radif.parse.read_corpus` guarantees.
+    """
     grouped: dict[str, list[GushehTemplate]] = {}
     for gusheh in corpus:
         tonic = mode_tonics.get(gusheh.modal_class.key)
         if tonic is None or not gusheh.notes:
             continue
-        grouped.setdefault(gusheh.modal_class.key, []).append(
-            build_gusheh_template(gusheh, tonic)
-        )
+        group = grouped.setdefault(gusheh.modal_class.key, [])
+        group.append(build_gusheh_template(gusheh, tonic, seyr_index=len(group)))
     return grouped
 
 
@@ -206,7 +221,8 @@ def save_gusheh_templates(
         "format": "dastgah-gusheh-templates/1",
         "source": "Radif Corpus (Zenodo 10.5281/zenodo.15742125, CC-BY-4.0)",
         "modes": {
-            mode: [asdict(t) for t in sorted(group, key=lambda t: t.name)]
+            # Serialised in seyr order; sorting by name would discard it.
+            mode: [asdict(t) for t in group]
             for mode, group in sorted(templates.items())
         },
     }

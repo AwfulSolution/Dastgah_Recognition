@@ -135,3 +135,22 @@ def test_tessitura_distance_wraps_around_the_octave():
     far = GushehTemplate("shur", "far", profile, 0.0, 1.0, 100)
     ranked = identify_gusheh(np.ones(24), -11.5, [near, far], tessitura_weight=4.0)
     assert ranked[0].name == "near"
+
+
+def test_gushehs_are_stored_in_seyr_order_not_alphabetically():
+    """The radif is an ordered traversal, and that order is the seyr.
+
+    It survives in the corpus filenames and must survive serialisation: for a
+    dastgah whose gushehs are largely borrowed from its neighbours, the order
+    is most of what distinguishes it.
+    """
+    from dastgah.core.analyze import DEFAULT_GUSHEH_PATH
+    from dastgah.radif.gusheh import load_gusheh_templates
+
+    modes = load_gusheh_templates(DEFAULT_GUSHEH_PATH)
+    for mode, group in modes.items():
+        assert [t.seyr_index for t in group] == list(range(len(group))), mode
+
+    names = [t.name for t in modes["rast_panjgah"]]
+    assert names[0] == "Daramad"
+    assert names != sorted(names), "alphabetical order would mean the seyr was lost"
