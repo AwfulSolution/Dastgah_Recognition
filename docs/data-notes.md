@@ -1186,3 +1186,81 @@ future change should pass: within-corpus cross-validation chose `bias` over
 `sharpen` on Nava (78.4% against 77.7%) and cross-corpus transfer chose the
 opposite (63.2% against 61.3%), so corpus-internal model selection is not
 sufficient here.
+
+## Every way of transferring a fitted model, and the count
+
+Fourteen configurations, all measured against the untrained classifier on the
+same recordings. Nothing beats theory by more than noise.
+
+Fit on Nava (1,568 recordings, 37 artists, no avaz labels):
+
+| variant | KDC (189) | IRMA (130) |
+| --- | --- | --- |
+| theory only | **57.7%** | **69.2%** |
+| bias | -8.5 | |
+| bias, class-balanced | -7.9 | |
+| bias, penalty 0.1 | -2.1 | |
+| sharpen | -5.8 | |
+| weights only | -6.9 | |
+| avazes frozen at theory | -10.6 | |
+| **avazes tied to their mother** | **-4.2** | **-3.1** |
+| avazes tied, bias | -7.9 | -5.4 |
+| nava template only | -6.9 | -2.3 |
+
+Fit on KDC (189 recordings, avaz labels present):
+
+| variant | IRMA | Nava |
+| --- | --- | --- |
+| sharpen | -5.4 | -10.3 |
+| bias | -9.2 | -9.7 |
+
+Fit on Nava and KDC jointly (1,757 recordings):
+
+| variant | IRMA |
+| --- | --- |
+| sharpen | +0.0 |
+| bias | +1.5 |
+| nava template only | +2.3 |
+
+### Tying is the right shape and not enough
+
+Pointing each unobserved mode at its mother's *fitted* parameters halves the
+damage freezing caused (-4.2 against -10.6) and beats leaving them free (-5.8).
+The tied biases confirm the mechanism was understood: Shur's five avazes carry
+Shur's own -0.07 instead of the -12.61 an unconstrained fit gave Bayat-e Tork.
+It still does not reach theory.
+
+### A corpus with avaz labels is necessary and not sufficient
+
+KDC has the labels Nava lacks and is the worst corpus to fit on: 87 of its 189
+in-scope recordings are Shur, because five avazes fold into it, so the fit
+learns to answer Shur. Shur gains 17 to 22 points and everything else collapses
+-- Nava falls to 6.6% on Nava's own recordings. 189 recordings dominated by one
+folded class cannot calibrate twelve templates.
+
+Adding those 189 to Nava's 1,568 moves transfer from about -4 to about zero,
+which is the right direction and inside the noise of a 130-recording test.
+
+### Correcting one template is zero-sum
+
+Nava is the one template that improves on all three corpora -- +11.3 under
+leave-one-artist-out within Nava, +26.3 on KDC, +14.3 on IRMA -- and it is the
+mode theory reads worst, which fits its 0.931 aligned cosine against Shur.
+Fitting it alone and pinning the other eleven at theory still loses 6.9 points
+on KDC, because the score is a softmax over all twelve templates:
+
+    recordings Nava's correction gains :  +5 of 19
+    recordings the others lose         : -18  (Shur -10 of 87, Homayun -6 of 31)
+    net                                : -13 of 189
+
+Probability handed to Nava is taken from Shur and Homayun. There is no such
+thing as repairing one template in isolation in a joint answer space, and the
+templates it steals from are larger than the one it fixes.
+
+### The conclusion this line reaches
+
+The notated radif's parameters are already close to cross-corpus optimal.
+Fitting reliably improves accuracy within whatever corpus it is fitted on --
+Nava 74.9% to 77.8% under leave-one-artist-out over 20 unseen artists -- and
+reliably degrades it on any other corpus. The gains are real and corpus-local;
+the parameters theory supplies are what generalise.

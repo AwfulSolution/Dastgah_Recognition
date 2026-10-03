@@ -328,3 +328,81 @@ def test_a_corpus_naming_every_mode_freezes_nothing(templates, records):
     design = build_design(records, templates)
     frozen = _frozen_modes(design, list(design.modes))
     assert not frozen.any()
+
+
+def test_tying_gives_an_avaz_its_mother_fitted_parameters(templates, records):
+    """The avaz inherits the recalibration, not theory's untouched values."""
+    from dastgah.core.learn import _tie_map
+
+    design = build_design(records, templates)
+    dastgah_only = [MODAL_CLASSES_BY_KEY[k].parent or k for k in design.modes]
+    truth = [dastgah_only[i % len(dastgah_only)] for i in range(design.n)]
+
+    source = _tie_map(design, truth)
+    tied = [i for i in range(design.n_modes) if source[i] != i]
+    assert tied, "fixture has no avaz to tie"
+    for index in tied:
+        mother = design.mothers[index]
+        assert design.modes[source[index]] == mother
+
+    theory = initial_parameters(design)
+    fitted = fit(design, truth, level="sharpen", penalty=0.0, tie_unobserved=True)
+    for index in tied:
+        assert fitted.sharpen[index] == pytest.approx(fitted.sharpen[source[index]])
+        assert fitted.bias[index] == pytest.approx(fitted.bias[source[index]])
+        # and it must differ from theory, or the tie delivered nothing
+        assert fitted.sharpen[index] != pytest.approx(theory.sharpen[index])
+
+
+@pytest.mark.parametrize("level", LEVELS)
+def test_the_tied_gradient_matches_finite_differences(templates, records, level):
+    """A scatter-add gradient is easy to get subtly wrong; check it numerically."""
+    from dastgah.core.learn import _tie_map
+
+    design = build_design(records, templates)
+    _, dastgahs = _mother_matrix(design)
+    dastgah_only = [MODAL_CLASSES_BY_KEY[k].parent or k for k in design.modes]
+    truth = [dastgah_only[i % len(dastgah_only)] for i in range(design.n)]
+    target = np.array([dastgahs.index(k) for k in truth])
+    source = _tie_map(design, truth)
+
+    rng = np.random.default_rng(11)
+    anchor = _pack(initial_parameters(design), level)
+    point = anchor + 0.08 * rng.standard_normal(anchor.shape)
+    _, gradient = _objective(point, level, design, target, 0.2, None, anchor, source)
+
+    step = 1e-6
+    for index in rng.choice(point.size, size=min(14, point.size), replace=False):
+        probe = point.copy()
+        probe[index] += step
+        up, _ = _objective(probe, level, design, target, 0.2, None, anchor, source)
+        probe[index] -= 2 * step
+        down, _ = _objective(probe, level, design, target, 0.2, None, anchor, source)
+        assert gradient[index] == pytest.approx((up - down) / (2 * step), rel=2e-4, abs=2e-7)
+
+
+def test_freezing_and_tying_cannot_both_be_asked_for(templates, records):
+    design = build_design(records, templates)
+    truth = [r["truth"] for r in records]
+    with pytest.raises(ValueError, match="exclusive"):
+        fit(design, truth, freeze_unobserved=True, tie_unobserved=True)
+
+
+def test_trainable_moves_only_the_named_templates(templates, records):
+    """Correcting one miscalibrated template must not disturb the others."""
+    design = build_design(records, templates)
+    truth = [r["truth"] for r in records]
+    theory = initial_parameters(design)
+    fitted = fit(design, truth, level="sharpen", penalty=0.0, trainable=["nava"])
+
+    index = design.modes.index("nava")
+    assert fitted.sharpen[index] != pytest.approx(theory.sharpen[index])
+    others = [i for i in range(design.n_modes) if i != index]
+    assert np.allclose(fitted.sharpen[others], theory.sharpen[others], atol=1e-8)
+    assert np.allclose(fitted.bias[others], theory.bias[others], atol=1e-8)
+
+
+def test_an_unknown_trainable_mode_is_refused(templates, records):
+    design = build_design(records, templates)
+    with pytest.raises(ValueError, match="not modal templates here"):
+        fit(design, [r["truth"] for r in records], trainable=["not_a_mode"])

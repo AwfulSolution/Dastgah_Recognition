@@ -46,16 +46,27 @@ def in_scope(records: "list[dict]", *, avazes: bool = True) -> "list[dict]":
             continue
         if not avazes and mother != r["truth"]:
             continue
-        folded.append({**r, "truth": mother})
+        folded.append({**r, "truth": mother, "_mode": r["truth"]})
     return folded
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--fit", type=Path, required=True)
+    parser.add_argument("--fit", type=Path, nargs="+", required=True)
     parser.add_argument("--test", type=Path, nargs="+", required=True)
     parser.add_argument("--level", default="bias")
     parser.add_argument("--penalty", type=float, default=0.0)
+    parser.add_argument(
+        "--trainable", nargs="+", default=None,
+        help="only these modal templates may move; all others stay at theory",
+    )
+    parser.add_argument(
+        "--tie", action="store_true",
+        help=(
+            "tie each mode the training labels never name to its mother's "
+            "fitted parameters, so it inherits the same recalibration"
+        ),
+    )
     parser.add_argument(
         "--no-avaz", action="store_true",
         help=(
@@ -75,17 +86,21 @@ def main() -> int:
 
     templates = load_templates(DEFAULT_TEMPLATE_PATH)
 
-    train = in_scope(load_records(args.fit, templates))
+    train = [r for cache in args.fit for r in in_scope(load_records(cache, templates))]
     train_design = build_design(
         train, templates, config=DEFAULT_CONFIG, answer_space=DASTGAHS_WITH_AUDIO
     )
     _, dastgahs = dastgah_probabilities(initial_parameters(train_design), train_design)
-    print(f"fitting on {args.fit.name}: {len(train)} recordings, "
-          f"{len({r['artist'] for r in train})} artists")
+    print(f"fitting on {', '.join(c.name for c in args.fit)}: {len(train)} recordings, "
+          f"{len({r['artist'] for r in train})} artists, "
+          f"{len({r['truth'] for r in train})} dastgahs, "
+          f"avaz labels present: "
+          f"{sorted({r['_mode'] for r in train if r['_mode'] != r['truth']}) or 'none'}")
     parameters = fit(
         train_design, [r["truth"] for r in train],
         level=args.level, penalty=args.penalty, config=DEFAULT_CONFIG,
-        balanced=args.balanced,
+        balanced=args.balanced, tie_unobserved=args.tie,
+        trainable=args.trainable,
     )
     print(f"  level={args.level} penalty={args.penalty:g} balanced={args.balanced}")
     print(f"  {'mode':<18} {'bias':>7}")

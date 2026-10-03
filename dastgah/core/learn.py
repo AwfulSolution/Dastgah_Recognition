@@ -297,6 +297,47 @@ def _frozen_modes(design: Design, truth: "list[str]") -> np.ndarray:
     return np.array([key not in observed for key in design.modes])
 
 
+def _tie_map(design: Design, truth: "list[str]") -> np.ndarray:
+    """(M,) index saying whose per-mode parameters each mode should use.
+
+    Freezing a mode the labels never name at theory's values does not work,
+    because the exponent is not separable per mode: the observed dastgahs move
+    to roughly 1.85 while a frozen avaz stays at 3.0, and a sharper profile is
+    more selective than a flatter one, so the two stop being comparable. Tying
+    instead points the avaz at its *mother's fitted* parameters, so it receives
+    the same recalibration the rest of the answer space did while contributing
+    no parameter of its own.
+
+    The avaz keeps its own notated profile shape; only the exponent, the offset
+    and any deviation are inherited. A mode whose mother is also unobserved is
+    left pointing at itself, there being nothing better to borrow.
+    """
+    observed = set(truth)
+    position = {key: index for index, key in enumerate(design.modes)}
+    source = np.arange(design.n_modes)
+    for index, key in enumerate(design.modes):
+        if key in observed:
+            continue
+        mother = design.mothers[index]
+        if mother in observed and mother in position:
+            source[index] = position[mother]
+    return source
+
+
+def _apply_tie(parameters: Parameters, source: np.ndarray) -> Parameters:
+    """Materialise a tie, so the returned parameters need no map to be used."""
+    return Parameters(
+        alpha=parameters.alpha,
+        transition_weight=parameters.transition_weight,
+        prior_weight=parameters.prior_weight,
+        progression_weight=parameters.progression_weight,
+        sharpen=parameters.sharpen[source],
+        bias=parameters.bias[source],
+        deviation=parameters.deviation[source],
+        modes=list(parameters.modes),
+    )
+
+
 def _bounds(level: str, design: Design, anchor: np.ndarray, frozen: np.ndarray):
     """Pin the frozen modes' parameters to theory, leaving the rest free."""
     if not frozen.any():
@@ -365,16 +406,29 @@ def _unpack(vector: np.ndarray, level: str, design: Design) -> Parameters:
     )
 
 
-def _scores(parameters: Parameters, design: Design) -> tuple[np.ndarray, np.ndarray]:
-    """(n, 24, M) scores and the (M, 24) log-profiles they used."""
-    log_profiles = parameters.log_profiles(design.log_theory)
+def _scores(
+    parameters: Parameters, design: Design, source: np.ndarray | None = None
+) -> tuple[np.ndarray, np.ndarray]:
+    """(n, 24, M) scores and the (M, 24) log-profiles they used.
+
+    ``source`` ties a mode's exponent, offset and deviation to another mode's,
+    while leaving its own notated profile shape alone.
+    """
+    if source is None:
+        log_profiles = parameters.log_profiles(design.log_theory)
+        bias = parameters.bias
+    else:
+        a = parameters.sharpen[source][:, None] * design.log_theory
+        a = a + parameters.deviation[source]
+        log_profiles = a - logsumexp(a, axis=1, keepdims=True)
+        bias = parameters.bias[source]
     profile_term = np.einsum("itd,md->itm", design.rotated, log_profiles)
     scores = (
         parameters.alpha * profile_term
         + parameters.transition_weight * design.transition
         + parameters.prior_weight * design.log_prior[:, :, None]
         + parameters.progression_weight * design.progression
-        + parameters.bias[None, None, :]
+        + bias[None, None, :]
     )
     return scores, log_profiles
 
@@ -406,6 +460,7 @@ def _objective(
     penalty: float,
     weights: np.ndarray | None = None,
     anchor: np.ndarray | None = None,
+    source: np.ndarray | None = None,
 ) -> tuple[float, np.ndarray]:
     """Weighted negative log-likelihood of the true dastgah, and its gradient.
 
@@ -422,7 +477,7 @@ def _objective(
     classifier rather than something unrelated to it.
     """
     parameters = _unpack(vector, level, design)
-    scores, log_profiles = _scores(parameters, design)
+    scores, log_profiles = _scores(parameters, design, source)
     posterior = _posterior(scores)
     fold, _ = _mother_matrix(design)
 
@@ -451,6 +506,15 @@ def _objective(
     d_a = d_log_profiles - profiles * d_log_profiles.sum(axis=1, keepdims=True)
     d_sharpen = (d_a * design.log_theory).sum(axis=1)
     d_deviation = d_a.copy()
+
+    if source is not None:
+        # Every tied mode's gradient accrues to the mode it borrowed from.
+        m = design.n_modes
+        d_bias = np.bincount(source, weights=d_bias, minlength=m)
+        d_sharpen = np.bincount(source, weights=d_sharpen, minlength=m)
+        gathered = np.zeros((m, N))
+        np.add.at(gathered, source, d_deviation)
+        d_deviation = gathered
 
     gradient = [
         np.array([d_alpha, d_transition, d_prior, d_progression]),
@@ -481,6 +545,8 @@ def fit(
     max_iterations: int = 400,
     balanced: bool = False,
     freeze_unobserved: bool = False,
+    tie_unobserved: bool = False,
+    trainable: "Iterable[str] | None" = None,
 ) -> Parameters:
     """Maximise the likelihood of the labelled dastgah, tonic latent.
 
@@ -490,7 +556,18 @@ def fit(
     hard to separate. ``freeze_unobserved`` holds at theory the per-mode
     parameters of any mode whose own label never appears in ``truth``. It
     defaults off because it measured *worse*: see :func:`_frozen_modes`.
+    ``tie_unobserved`` instead points those modes at their mother's fitted
+    parameters, which is the shape the freezing failure argues for; see
+    :func:`_tie_map`. The two are mutually exclusive.
+
+    ``trainable`` names the only modes whose per-mode parameters may move,
+    holding every other template at theory. Fitting the whole answer space does
+    not transfer between corpora, but a single miscalibrated template can be
+    corrected without disturbing the eleven that are already right -- and a
+    one-template fit has far less to overfit.
     """
+    if freeze_unobserved and tie_unobserved:
+        raise ValueError("freeze_unobserved and tie_unobserved are exclusive")
     if level not in LEVELS:
         raise ValueError(f"level must be one of {LEVELS}, got {level!r}")
     _, dastgahs = _mother_matrix(design)
@@ -511,16 +588,24 @@ def fit(
         if freeze_unobserved
         else np.zeros(design.n_modes, dtype=bool)
     )
+    if trainable is not None:
+        allowed = set(trainable)
+        unknown = allowed - set(design.modes)
+        if unknown:
+            raise ValueError(f"not modal templates here: {sorted(unknown)}")
+        frozen = frozen | np.array([k not in allowed for k in design.modes])
+    source = _tie_map(design, list(truth)) if tie_unobserved else None
     result = minimize(
         _objective,
         start,
-        args=(level, design, target, penalty, weights, start.copy()),
+        args=(level, design, target, penalty, weights, start.copy(), source),
         jac=True,
         method="L-BFGS-B",
         bounds=_bounds(level, design, start, frozen),
         options={"maxiter": max_iterations},
     )
-    return _unpack(result.x, level, design)
+    fitted = _unpack(result.x, level, design)
+    return fitted if source is None else _apply_tie(fitted, source)
 
 
 def predict(
