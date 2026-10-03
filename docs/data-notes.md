@@ -1264,3 +1264,49 @@ Fitting reliably improves accuracy within whatever corpus it is fitted on --
 Nava 74.9% to 77.8% under leave-one-artist-out over 20 unseen artists -- and
 reliably degrades it on any other corpus. The gains are real and corpus-local;
 the parameters theory supplies are what generalise.
+
+## The error budget: tonic placement is 16 points, the profile is 9
+
+Measured over the 1,568 in-scope Nava recordings.
+
+**Scoring every class at the tonic the true class prefers gives 91.0%**, against
+74.9% as shipped. So of the 25 missing points, **16.1 are tonic placement** and
+**9.0 are what the profile cannot separate at all**. The 91.0% consults the truth
+to choose the tonic, so it bounds the available prize rather than promising it.
+
+The ranking is nearly right already: truth in the top two 91.4%, mean rank 1.40
+of 6, and 66% of errors have the truth in second place. The classifier knows the
+answer is one of two and picks wrong between them.
+
+Errors track profile overlap, and the rotations say which kind of error each is:
+
+| true -> predicted | share of errors | aligned cos | rotation from the true tonic |
+| --- | --- | --- | --- |
+| nava -> shur | 19.3% | 0.931 | 49 of 76 at a fifth, 18 at a fourth |
+| chahargah -> homayun | 12.2% | 0.795 | **33 of 48 at the same tonic** |
+| shur -> nava | 8.9% | 0.931 | 31 of 35 at a fourth |
+| nava -> mahur | 6.1% | 0.841 | scattered |
+| segah -> shur | 5.8% | 0.872 | 17 of 23 at 21 quarter-tones |
+
+Shur and Nava together are 28% of every error, and they are overwhelmingly
+*rotations* -- the mode is recognised and the tonic is misplaced by a fourth or a
+fifth, exactly the interval relating the two. Chahargah and Homayun are the
+opposite: two thirds at the same tonic, so that pair is a true modal confusion
+the profile cannot resolve.
+
+### The representation is binding, not the parameters
+
+Artist-grouped, on exactly the 24-bin tonic-relative profile the classifier uses:
+
+| classifier | accuracy |
+| --- | --- |
+| **templates, untrained** | **74.9%** |
+| 15-nearest neighbours | 70.1% |
+| multinomial logistic regression | 68.8% |
+| 1-nearest neighbour | 67.7% |
+
+No learned model beats the templates on these features. The templates extract
+more from the representation than a fitted classifier does, and the
+representation caps out near 70-75%. That is the reason fourteen fitted
+configurations all failed to transfer, and the reason hyperparameter work is
+exhausted: there is nothing left in the feature for parameters to reach.

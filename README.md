@@ -10,41 +10,54 @@ tār, setār, ney, kamānche, santur or voice without having seen any of them.
 
 ## Current accuracy
 
-Five corpora, listed from the broadest evidence to the narrowest. The spread
-between them is the important part, and it is mostly about who is playing.
+The library answers over **six dastgāhs** — Shūr, Navā, Homāyūn, Māhūr,
+Chahārgāh and Segāh — with each āvāz folded into its mother, so a recording of
+Dashti is a correct answer of Shūr. Rāst-Panjgāh is deliberately outside the
+answer space; [docs/data-notes.md](docs/data-notes.md) records why, and removing
+it is worth 11.5 points.
 
-**On Nava — the broadest evidence available.** 1,785 solo recordings, 54.9
-hours, by **39 artists** across five instruments and all seven dastgahs
-(BabaAli & Mohammadi, University of Tehran; obtained by request):
+Every figure below is the shipped configuration, untrained.
+
+**On Nava — the broadest evidence available.** 1,568 in-scope recordings by
+**37 artists** across five instruments (BabaAli & Mohammadi, University of
+Tehran; obtained by request). Nothing in the system was tuned against it: the
+templates come from notation and every weight was fixed before Nava arrived.
 
 | Metric | Result |
 | --- | --- |
-| Accuracy over seven dastgahs | **63.8%** (chance 14.3%) |
-| Macro average over classes | 63.1% |
-| Per-artist mean | 64.2%, sd 11.7, range 41-86% |
+| Accuracy over six dastgāhs | **74.9%** (chance 16.7%) |
+| Macro average over classes | 74.6% |
+| Truth in the top two | 89.4% |
 
-Per-class: Segāh 78.2%, Shūr 73.0%, Chahārgāh 71.6%, Homāyūn 68.4%, Māhūr 57.0%,
-Navā 55.8%, Rāst-Panjgāh 37.8%.
+Per-class: Māhūr 86.8%, Segāh 80.6%, Homāyūn 76.7%, Shūr 74.1%,
+Chahārgāh 73.4%, Navā 56.2%.
 
-This is the figure to quote. It is five times the recordings and six times the
-performers of anything else here, it is balanced across dastgah and instrument,
-and nothing in the system was tuned against it — the templates come from
-notation, and every weight was fixed before Nava was obtained.
+**Recording length dominates everything else.** The same classifier, same
+parameters, on the same corpus split by duration:
 
-**Performer and instrument both matter.** Accuracy varies across artists with a
-standard deviation of 11.7 points. By instrument it runs 65-69% for four of the
-five and **50.8% for the fifth**, a 15-point deficit. The two effects cannot be
-fully separated here: 30 of the 39 artists play only one instrument.
+| | recordings | accuracy |
+| --- | --- | --- |
+| all of Nava (median 75 s) | 1,568 | 74.9% |
+| Nava over three minutes | 218 | **89.0%** |
 
-**On other corpora.** The development archive of 340 commercial performances
-scores 74.1% over six dastgahs; KDC, 255 solo recordings by six musicians, scores
-53.3%; IRMA's 130 Karimi-radif contours score 69.2%. The archive figure is the
-least trustworthy of the four — two performers hold 310 of its 340 recordings and
-every scoring weight was chosen against it.
+A 75-second excerpt does not contain enough of a performance to identify its
+mode. Quote 74.9% for short excerpts and 89.0% for whole performances; one
+number for both would misrepresent either.
 
-**On the notated radif itself.** Leave-one-out over the 229 gushehs:
-60.3% across 13 classes, 69.4% at 7. An upper bound rather than a forecast, since
-the weights were tuned on that split.
+**On other corpora**, where the recordings are shorter, the performers fewer,
+or both: IRMA's Karimi-radif contours score 69.2% over 130 in-scope items; KDC's
+189 in-scope recordings score 57.7%; sixteen complete Shajarian radif
+performances score 50.0% — those last are 10 to 30 minutes each and traverse
+many gushehs, which is the hardest case for a single pooled histogram rather
+than the easiest.
+
+**On the notated radif itself.** Leave-one-out over the 229 gushehs: 60.3%
+across 13 classes, 69.4% at 7. An upper bound rather than a forecast, since the
+weights were tuned on that split.
+
+**Training does not improve any of this.** Fourteen configurations were fitted
+and measured; all improve the corpus they were fitted on and degrade every other
+one. The notes record each.
 
 ## What it reports
 
@@ -164,40 +177,60 @@ Neither corpus is vendored; `./scripts/fetch_data.sh` downloads them.
 
 ## Known limitations
 
-- **Monophonic assumption.** pYIN tracks one voice. Ensemble recordings with
-  independent simultaneous melodies will degrade.
-- **Āvāz vs parent dastgāh.** An āvāz shares its scale with its parent and
-  differs mainly in melodic emphasis, so Shūr/Dashtī-type confusions are
-  inherent to a pitch-distribution method. The transition term helps a little;
-  real separation needs melodic-contour modelling.
-- **Āvāzes are not usable**, as above. Only the seven dastgāhs are.
-- **Hyperparameters were tuned on the corpus leave-one-out split.** They were
-  not re-tuned on IRMA — the same `sharpen=3.0` is best in both — but the
-  corpus figure remains optimistic for that reason.
-- **The held-out set is one tradition, one set of performers.** IRMA's contours
-  are all Karimi radif; broader performer and instrument variety is untested.
-- **Gusheh identification is not implemented.** Only modal segmentation is.
-- **Monophonic pitch input.** IRMA's contours and pYIN both assume one voice.
+- **Recording length is the single biggest factor.** 74.9% on Nava's
+  75-second median, 89.0% on its recordings over three minutes. A short excerpt
+  does not contain enough of a performance to identify its mode.
+- **Tonic placement, not mode recognition, is the largest error source.** Given
+  the true class's own tonic the classifier reaches 91.0%, so about 16 of the 25
+  missing points are the tonic being put in the wrong place. Shūr and Navā share
+  a pitch collection — aligned cosine 0.931 — and 80 of their 111 mutual errors
+  sit exactly a fourth or a fifth away from the right tonic.
+- **A pitch-class profile cannot separate every pair.** Even with the tonic
+  given, 9.0 points remain. Chahārgāh confused with Homāyūn is 12% of all errors
+  and two thirds of those are at the *same* tonic, so that pair is a genuine
+  modal confusion rather than a rotation.
+- **The 24-bin profile is the ceiling, not the parameters.** No learned
+  classifier on those features beats the templates: 15-nearest-neighbours 70.1%,
+  logistic regression 68.8%, 1-nearest-neighbour 67.7%, templates 74.9%, all
+  artist-grouped. Fourteen fitted configurations were measured and none
+  transferred between corpora.
+- **Rāst-Panjgāh is out of scope.** 91.7% of its gushehs have a near-twin in
+  another dastgāh and Panjgāh itself is pitch-indistinguishable from Navā's
+  opening darāmad. Removing it is worth 11.5 points.
+- **Monophonic assumption.** pYIN tracks one voice; ensemble recordings with
+  independent simultaneous melodies degrade. One of Nava's five instruments
+  scores 50.8% against 65-69% for the others, and three different models failed
+  to close that gap, which points at pitch tracking rather than classification.
+- **Āvāzes are answered as their mother dastgāh**, not in their own right.
+  Folding beats dropping them, but an āvāz-specific answer is not available.
+- **No corpus here is fully clean.** KDC and IRMA have both informed design
+  decisions; the Shajarian radif and Nava's long recordings have not.
 
 ## Next steps
 
-Separating modes *within* a family was attempted with a learned model and did
-not work: seven functional tonic features plus the template margin scored 56.0%
-under leave-one-performer-out against a 58.2% majority-class baseline, and every
-attempt to correct the underlying score bias merely moved the error from one
-class to the other. The full account, including the performer confound that
-shapes any experiment on this data, is in [docs/data-notes.md](docs/data-notes.md).
+Ranked by measured headroom rather than by appeal.
 
-On current evidence the family layer is the ceiling for pitch-based
-classification. Worthwhile directions from here:
+1. **Tonic placement — up to 16 points.** The forud is what fixes the tonic, and
+   the cadence prior currently carries a weight of 0.25 against pitch content.
+   Both a weight sweep over the six-class answer space and better cadence
+   detection target a deficit that has now been measured rather than guessed.
+   Note the 91.0% is an oracle that consults the truth, so it bounds the prize
+   rather than promising it.
+2. **More audio per decision — up to 14 points.** 89.0% on recordings over three
+   minutes is the same classifier on longer input. For short uploads, scoring
+   several windows and combining them is untried.
+3. **A feature that separates modes sharing a pitch collection — 9 points.**
+   This is the hard residual and the one place a genuinely new representation is
+   required. Scoring progression through the seyr was tried and failed: it reads
+   order correctly but a performance advances through every dastgāh's seyr almost
+   equally, because 70-92% of every dastgāh's gushehs have a near-twin elsewhere.
+4. **Gusheh identification.** IRMA labels every contour with its gusheh, so the
+   references exist, and it does not depend on solving 3.
 
-1. **More performers.** Nine groups, with the label nearly determined by
-   performer outside one of them, is too few to establish whether within-family
-   signal generalises. This is the cheapest way to change the answer.
-2. **Phrase-level rather than recording-level features.** Everything tried so far
-   summarises a whole recording. The *forud* is a local event, and a 90-second
-   excerpt from the middle of a performance rarely contains one.
-3. **Gusheh identification** — IRMA labels every contour with its gusheh, so the
-   references exist, and it does not depend on solving the within-family problem.
-4. **The drone.** Persian ensemble practice often sounds the tonic continuously
-   beneath the melody; monophonic f0 tracking discards it by design.
+What is already ruled out, with the evidence in
+[docs/data-notes.md](docs/data-notes.md): refitting the global scoring weights
+(worth nothing on four corpora), training per-mode parameters (improves the
+fitted corpus, degrades every other), lowering the sharpening exponent, stacking
+a learned model on the classifier output, and correcting one template in
+isolation — the answer space is a softmax, so probability given to Navā is taken
+from Shūr and Homāyūn.
