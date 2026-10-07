@@ -1310,3 +1310,96 @@ more from the representation than a fitted classifier does, and the
 representation caps out near 70-75%. That is the reason fourteen fitted
 configurations all failed to transfer, and the reason hyperparameter work is
 exhausted: there is nothing left in the feature for parameters to reach.
+
+## Tonic placement: 16 points of headroom, and no way in yet
+
+The error budget puts 16.1 of the 25 missing points on tonic placement, so this
+is where the work went. Three things were tried. None of them ships.
+
+### The prior's weights are already optimal
+
+A fast sweep (`scripts/sweep_tonic.py` precomputes the score terms, so the
+weights are arithmetic) over 144 combinations of `forud_prior_weight`,
+`tonic_prior_weight` and `forud_recency_halflife`, on five corpora:
+
+| tonic_prior_weight | 0 | **0.25** | 0.5 | 1 | 2 | 4 |
+| --- | --- | --- | --- | --- | --- | --- |
+| nava (1568) | 66.1 | **74.9** | 73.7 | 69.7 | 66.8 | 63.7 |
+| nava >3min (218) | 79.8 | **89.0** | 84.9 | 81.7 | 78.4 | 72.9 |
+| kdc (189) | 52.9 | **56.6** | 48.7 | 46.0 | 42.3 | 42.3 |
+| irma (130) | 60.0 | **69.2** | 61.5 | 57.7 | 50.0 | 50.0 |
+
+The shipped 0.25 is the optimum on every corpus and the peak is sharp: turning
+the prior off costs 8 points on Nava, doubling it costs 1 to 8. Best alternative
+over the whole grid is +0.1 pooled and -0.8 on IRMA. **The weights are done.**
+
+Worth recording how nearly this was mis-measured: the sweep's first run showed
+`forud_prior_weight` making *identical* accuracy at 0.0 and 1.0 on all five
+corpora, which is impossible unless the cadence prior never differs from
+sounding time. `load_records` was dropping `foruds`, so `tonic_prior([])`
+returned None every time and the blend fell back to sounding time. The KDC
+baseline came out 9.6 points low as a result -- which is itself the measurement:
+**cadence evidence is worth 9.6 points on KDC.** A flat row would have been
+reported as "the weight does not matter"; only its being *exactly* flat gave it
+away.
+
+### The prior's quality is the bottleneck
+
+Rank of the true class's own tonic among 24 candidates, over 1,568 recordings:
+
+| prior | mean rank | top-1 | top-3 |
+| --- | --- | --- | --- |
+| sounding time | 2.74 | 46.4% | 77.5% |
+| cadence | 2.42 | 42.5% | 79.8% |
+| blended, as shipped | 2.61 | **51.5%** | 79.8% |
+
+Cadences are detected in 98.2% of recordings, median 7 per recording. The
+blended prior puts the right tonic first only half the time, and that is what
+caps the 16 points -- not the weight it is given.
+
+### The shahed cannot break the Shur/Nava tie, provably
+
+Only Nava places its shahed on its tonic (+0); Shur's sits at +10, Mahur's +14,
+Chahargah's and Segah's +17. So a prior that rewards tonic hypotheses for
+carrying sounding time is pointed at the wrong degree for five of six dastgahs,
+and the per-dastgah ranks follow: Nava 1.74, best of the six, against Segah 3.62
+and Shur 3.18.
+
+`shahed_interval` was already on every template and used only for display.
+Reading it in the score was tried three ways and all three lose:
+
+| form | pooled | note |
+| --- | --- | --- |
+| every mode's sounding read at its shahed | -3.9 | Nava +6.6, Segah -12.3 |
+| only Shur and Nava | -2.2 | KDC +1.6 and IRMA +2.3, but Nava -2.7 |
+| gated: consult only when the pair holds the top two | -2.0 | Shur -14.0, Nava +4.1 |
+
+The gating itself worked -- Homayun, Mahur, Chahargah and Segah all moved
+exactly 0.0 -- so the mechanism was sound and the evidence was not. Across all
+corpora the rule fired 82 times and was right 18 of them: worse than chance.
+
+The reason is structural. In the 399 recordings where Shur and Nava hold the top
+two places, **the two tonic hypotheses are exactly a fourth apart in 79% of
+them**, and that is the interval between the two shaheds:
+
+    Shur's shahed = t_shur + 10
+    Nava's shahed = t_nava +  0 = (t_shur + 10) + 0
+
+**The two shaheds land on the same pitch class in 67% of the contests.** The
+shahed is invariant under precisely the rotation that distinguishes the two
+modes, so it predicts the same observation under both hypotheses and carries no
+information in the majority of the cases it was meant to resolve. The swaps it
+does make come from the unrepresentative third.
+
+This generalises, and it is the useful part: **any feature of the form "which
+degree is most sounded" is rotation-invariant for this pair and cannot separate
+it.** What is needed is something asymmetric under rotation -- where phrases
+*resolve* (the ist, which is what the forud detector already targets) or how a
+degree is approached, not where the weight sits. The refuted scoring paths were
+removed rather than left switched off, since they sat in the per-candidate inner
+loop.
+
+A first-run artefact also corrected here: a reimplementation used `max()` to
+compare the two evidences, which breaks exact ties by insertion order and
+reported a swap whenever Nava ranked first -- inflating 51 firings to 182. The
+ties were the finding.

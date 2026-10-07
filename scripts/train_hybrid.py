@@ -58,6 +58,12 @@ def load_records(cache: Path, templates) -> list[dict]:
                 if prior is not None
                 else None,
                 "W": r.get("W"),
+                # Carried so a caller can rebuild the prior under other weights;
+                # without these a sweep of the cadence weights silently does
+                # nothing, because tonic_prior([]) returns None and the blend
+                # falls back to sounding time for every recording.
+                "foruds": r.get("foruds") or [],
+                "dur": r.get("dur"),
                 "truth": r["truth"],
                 "artist": r.get("artist", "?"),
                 "instrument": r.get("instrument", "?"),
