@@ -1486,3 +1486,91 @@ arrives differently. `Forud` already records `descent`, and the Radif Corpus has
 the closing notes of every gusheh, so the approach pattern is derivable from
 notation rather than fitted. That is the next thing with a mechanism behind it,
 and unlike the shahed it is asymmetric under rotation.
+
+## Cadence approach: the notation separates the pair, the audio cannot deliver it
+
+The last idea with a mechanism behind it. Every other feature here scores pitch
+*content*, which cannot separate modes sharing a collection; the approach into a
+close is anchored on the note resolved **onto** rather than on the tonic, so it
+describes the shape of the descent and is asymmetric under rotation.
+
+### In the notation it works
+
+Built from 205 gusheh closings in the Radif Corpus, as the duration-weighted
+intervals of the eight notes before each close, relative to the final note
+(`ModalTemplate.cadence_profile`; 12 of 13 modes qualify, Afshari having only
+four closes):
+
+    shur    0qt 33%   10qt 21%   3qt 20%     reached from a fourth ABOVE
+    nava    0qt 40%   20qt 21%  10qt 19%     reached from a fourth BELOW
+    mahur   4qt 33%    0qt 30%   8qt 16%     stepwise from a major second above
+
+Shur descends into its ist; Nava rises into it. Under this representation
+**Shur/Nava sits at 0.866 against 0.931 for the pitch profiles**, and the pair is
+no longer the least separable in the answer space -- Chahargah/Segah is, at
+0.919. The premise is sound and is asserted by a test rather than assumed.
+
+### In the audio it fails
+
+`cadence_agreement` weights each detected cadence by the cosine between how it
+was actually approached and how the mode in question approaches a close, added
+to the score with its own weight.
+
+| corpus | 0 | 0.5 | 1 | 2 | 4 |
+| --- | --- | --- | --- | --- | --- |
+| nava (1568) | **74.9** | 73.9 | 73.6 | 72.4 | 70.4 |
+| nava >3min (218) | **89.0** | 84.9 | 84.4 | 83.5 | 78.9 |
+| irma (130) | **69.2** | 69.2 | 69.2 | 63.8 | 60.0 |
+| kdc (189) | 57.7 | 57.7 | 57.7 | **58.2** | 57.7 |
+| pooled | **74.4** | 73.3 | 73.0 | 71.8 | 69.5 |
+
+The loss concentrates on the mode it was built for: Shur -4.3 on Nava and
+**-15.4** on the long recordings.
+
+The reason is that the feature sits downstream of a detection problem and
+inherits it. An approach profile is computed from the note events inside a
+detected forud, and only 21.7% of those detections resolve on the tonic -- the
+rest are phrase-rests. Comparing non-cadential approaches against notated
+cadential templates yields noise, and for Shur, whose rests sit on its shahed,
+that noise is anti-correlated with the truth.
+
+Two implementation findings worth keeping, both caught by tests before any
+measurement:
+
+**The evidence cannot be a prior.** A per-mode *prior* over tonics came out
+exactly identical across modes on a single cadence, because normalising over
+degrees cancels any per-mode weighting. The discriminating case is two modes
+competing for the *same* tonic, which a normalised distribution cannot express
+at all. The term has to be additive.
+
+**It has to be centred across modes.** Uncentred, the term rewards whichever
+mode has the broadest notated approach, a flat profile scoring a decent cosine
+against anything -- the same bias `sharpen` exists to correct for pitch
+profiles, and a property of the template rather than evidence about the
+recording.
+
+`cadence_weight` defaults to 0.0 and the code is kept: the notated profiles are
+a real artefact, the per-cadence approach caching is now in the extraction
+pipeline, and if detector precision ever improves this becomes testable again
+rather than needing rebuilding.
+
+## Tonic placement, closed out
+
+Five approaches to the 16 points, all refuted:
+
+| approach | result |
+| --- | --- |
+| reweighting the cadence prior (144 combinations, 5 corpora) | shipped weights already optimal |
+| selecting fewer, better cadences (strong, last, last three) | -0.0 to -0.7 pooled |
+| the shahed as a scoring term, globally | -3.9 pooled |
+| the shahed restricted to Shur and Nava, or gated to them | -2.2, -2.0 |
+| cadence-approach agreement | -1.2 to -4.9 pooled |
+
+Every one of them consumes the forud detector's output, and that output is about
+20% precise: roughly eleven cadences are found per recording and a couple are
+real foruds. 70.5% of recordings contain a cadence on the true tonic, so the
+information is present and the selection signal is not.
+
+**The bottleneck is forud detection precision**, and it is the one thing in this
+chain that has not been attempted. Nothing downstream of it can be fixed while
+four detections in five are not foruds.

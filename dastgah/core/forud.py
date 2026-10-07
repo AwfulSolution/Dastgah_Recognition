@@ -133,6 +133,22 @@ def find_foruds(
     return found
 
 
+def _recency_weights(
+    foruds: list[Forud],
+    recency_halflife: float | None,
+    total_duration: float | None,
+) -> np.ndarray:
+    """Per-cadence discount favouring later ones, or ones everywhere if unset.
+
+    A performance may visit several modes and only the closing forud returns to
+    the principal tonic.
+    """
+    if not (recency_halflife and total_duration):
+        return np.ones(len(foruds))
+    ages = np.array([max(0.0, total_duration - f.end) for f in foruds])
+    return np.exp(-np.log(2) * ages / recency_halflife)
+
+
 def tonic_prior(
     foruds: list[Forud],
     *,
@@ -149,15 +165,101 @@ def tonic_prior(
     if not foruds:
         return None
 
+    recency = _recency_weights(foruds, recency_halflife, total_duration)
     weights = np.zeros(N, dtype=float)
-    for forud in foruds:
-        weight = forud.strength
-        if recency_halflife and total_duration:
-            age = max(0.0, total_duration - forud.end)
-            weight *= float(np.exp(-np.log(2) * age / recency_halflife))
-        weights[forud.resolution_pc] += weight
+    for forud, discount in zip(foruds, recency, strict=True):
+        weights[forud.resolution_pc] += forud.strength * discount
 
     if weights.sum() <= 0:
         return None
     prior = weights / weights.sum() + smoothing
     return prior / prior.sum()
+
+
+def approach_profile(
+    events: "list[NoteEvent]", forud: Forud, *, notes: int = 8
+) -> np.ndarray | None:
+    """How a cadence was reached, as intervals from the note it resolved onto.
+
+    The mirror of :func:`dastgah.radif.templates._cadence_profile`, computed from
+    audio instead of notation so the two can be compared. Anchored on the
+    resolution rather than the tonic, which is what makes it informative about a
+    pair of modes that share a pitch collection: Shur reaches its close from the
+    shahed a fourth above, Nava from a fourth below.
+
+    Returns ``None`` when the descent carries too few notes to describe.
+    """
+    within = [e for e in events if forud.start <= e.start < forud.end]
+    if len(within) < 2:
+        return None
+    tail = within[-notes - 1 : -1] or within[:-1]
+    histogram = np.zeros(N)
+    for event in tail:
+        histogram[(event.pitch_class - forud.resolution_pc) % N] += event.duration
+    if histogram.sum() <= 0:
+        return None
+    return histogram / histogram.sum()
+
+
+def cadence_agreement(
+    foruds: list[Forud],
+    events: "list[NoteEvent]",
+    cadence_profiles: dict[str, "np.ndarray | None"],
+    *,
+    recency_halflife: float | None = None,
+    total_duration: float | None = None,
+) -> "dict[str, np.ndarray] | None":
+    """Per mode, how well the cadences resolving on each degree fit that mode.
+
+    Additive evidence rather than a prior, and that distinction is the whole
+    point. A prior is a distribution over tonics, so it can only say *where*
+    cadences resolved; normalising it cancels any per-mode weighting outright
+    when every cadence lands on the same degree. But the discriminating case is
+    exactly two modes at the *same* tonic -- a forud onto Nava's tonic reached
+    from below against a phrase-rest on Shur's shahed reached from above are the
+    same pitch class, and measured on Nava, Shur is the one mode whose cadences
+    land more often on its shahed than on its tonic.
+
+    Returns ``{mode: (24,) evidence}``, unnormalised across degrees so that it
+    can express absolute support, but **centred across modes** at each degree so
+    that only relative fit counts. Without centring the term rewards whichever
+    mode has the broadest notated approach, since a flat profile scores a decent
+    cosine against anything -- Shur's (33% on the resolution, 21% and 20% on two
+    other degrees) against Nava's (40% and 21%). That is the same bias
+    ``sharpen`` exists to correct for pitch profiles, and it is a property of the
+    template rather than evidence about the recording.
+
+    A degree with no cadence scores zero for every mode, which is neutral
+    between them. Modes with no notated approach, and cadences whose approach
+    cannot be described, contribute nothing.
+    """
+    if not foruds:
+        return None
+    approaches = [approach_profile(events, f) for f in foruds]
+    if all(a is None for a in approaches):
+        return None
+    recency = _recency_weights(foruds, recency_halflife, total_duration)
+
+    out: dict[str, np.ndarray] = {}
+    for key, profile in cadence_profiles.items():
+        evidence = np.zeros(N)
+        if profile is None:
+            out[key] = evidence
+            continue
+        norm_profile = float(np.linalg.norm(profile))
+        for forud, approach, discount in zip(foruds, approaches, recency, strict=True):
+            if approach is None or norm_profile <= 0:
+                continue
+            norm = float(np.linalg.norm(approach)) * norm_profile
+            if norm <= 0:
+                continue
+            similarity = float(np.dot(approach, profile) / norm)
+            evidence[forud.resolution_pc] += forud.strength * discount * similarity
+        out[key] = evidence
+
+    described = [k for k, v in cadence_profiles.items() if v is not None]
+    if described:
+        mean = np.mean([out[k] for k in described], axis=0)
+        for key in described:
+            out[key] = out[key] - mean
+    return out

@@ -24,7 +24,7 @@ from dastgah.core.audio import (
     track_pitch,
     transition_matrix,
 )
-from dastgah.core.forud import find_foruds
+from dastgah.core.forud import approach_profile, find_foruds
 from dastgah.core.seyr import window_histograms
 
 AUDIO_SUFFIXES = {".wav", ".flac", ".mp3", ".aiff", ".aif", ".m4a", ".ogg"}
@@ -141,12 +141,17 @@ def main() -> int:
         if histogram.sum() <= 0:
             continue
 
+        foruds = find_foruds(events, total_duration=track.duration)
         cached[path.stem] = {
             "name": path.stem,
             "path": str(path),
             "h": histogram,
             "B": transition_matrix(events),
-            "foruds": find_foruds(events, total_duration=track.duration),
+            "foruds": foruds,
+            # One per forud, aligned with it: how that cadence was approached,
+            # as intervals from the note resolved onto. Kept here because note
+            # events are far too large to cache and cannot be recovered later.
+            "approaches": [approach_profile(events, f) for f in foruds],
             "dur": track.duration,
             # Time-ordered windows, for scoring progression through the seyr.
             "W": window_histograms(

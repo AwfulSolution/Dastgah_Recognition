@@ -63,6 +63,7 @@ def load_records(cache: Path, templates) -> list[dict]:
                 # nothing, because tonic_prior([]) returns None and the blend
                 # falls back to sounding time for every recording.
                 "foruds": r.get("foruds") or [],
+                "approaches": r.get("approaches"),
                 "dur": r.get("dur"),
                 "truth": r["truth"],
                 "artist": r.get("artist", "?"),

@@ -81,6 +81,18 @@ class ScoringConfig:
     transition_weight: float = 0.5
     #: Weight on the tonic prior, which blends sounding time with cadences.
     tonic_prior_weight: float = 0.25
+    #: Weight on cadence-approach agreement, which is the only term here that is
+    #: asymmetric under rotation.
+    #:
+    #: Everything else scores pitch *content*, and content cannot separate two
+    #: modes sharing a collection: Shur and Nava match at aligned cosine 0.931.
+    #: The approach into a close is anchored on the note resolved onto rather
+    #: than the tonic, and the notated radif has Shur reach its close from the
+    #: shahed a fourth above where Nava reaches it from a fourth below -- 0.866
+    #: between the two, and no longer the least separable pair.
+    #:
+    #: Zero by default until measured.
+    cadence_weight: float = 0.0
     #: Softmax temperature.
     #:
     #: Under the default answer space this is not only a display setting. Folding
@@ -224,6 +236,7 @@ def classify(
     *,
     transitions: np.ndarray | None = None,
     tonic_prior: np.ndarray | None = None,
+    cadence_agreement: "dict[str, np.ndarray] | None" = None,
     config: ScoringConfig = DEFAULT_CONFIG,
 ) -> Classification:
     """Rank every (mode, tonic) pairing for observed pitch content.
@@ -236,6 +249,13 @@ def classify(
     lies, for instance from cadence detection. Without it the prior falls back to
     sounding time, which is a poor proxy: the most-sounded degree is usually the
     *shahed*, not the tonic.
+
+    ``cadence_agreement`` optionally supplies, per mode, 24 bins of evidence
+    about how well the cadences resolving on each degree match the way that mode
+    approaches a close -- see :func:`dastgah.core.forud.cadence_agreement`. It is
+    added rather than folded into the prior because a prior is normalised over
+    degrees and so cannot distinguish two modes competing for the *same* tonic,
+    which is the case that matters.
     """
     observed = np.asarray(histogram, dtype=float)
     if observed.shape != (N,):
@@ -252,18 +272,22 @@ def classify(
         if matrix.sum() > 0:
             observed_transitions = _normalize(matrix.ravel()).reshape(N, N)
 
-    if tonic_prior is None:
-        prior = observed
-    else:
-        prior = np.asarray(tonic_prior, dtype=float)
-        if prior.shape != (N,):
-            raise ValueError(f"expected {N} tonic prior bins, got {prior.shape}")
-        total_prior = prior.sum()
-        prior = observed if total_prior <= 0 else prior / total_prior
-    log_tonic_prior = np.log(prior + 1e-9)
+    def _as_log_prior(values: "np.ndarray | None") -> np.ndarray:
+        if values is None:
+            return np.log(observed + 1e-9)
+        array = np.asarray(values, dtype=float)
+        if array.shape != (N,):
+            raise ValueError(f"expected {N} tonic prior bins, got {array.shape}")
+        total = array.sum()
+        return np.log((observed if total <= 0 else array / total) + 1e-9)
+
+    log_tonic_prior = _as_log_prior(tonic_prior)
 
     candidates: list[Candidate] = []
     for key, template in templates.items():
+        agreement = (
+            None if cadence_agreement is None else cadence_agreement.get(key)
+        )
         profile = template.as_array() ** config.sharpen
         log_profile = np.log(profile / profile.sum())
 
@@ -286,6 +310,8 @@ def classify(
                 )
 
             score += config.tonic_prior_weight * float(log_tonic_prior[tonic_pc])
+            if agreement is not None and config.cadence_weight:
+                score += config.cadence_weight * float(agreement[tonic_pc])
             candidates.append(
                 Candidate(
                     key=key,
