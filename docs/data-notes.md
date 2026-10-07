@@ -1574,3 +1574,57 @@ information is present and the selection signal is not.
 **The bottleneck is forud detection precision**, and it is the one thing in this
 chain that has not been attempted. Nothing downstream of it can be fixed while
 four detections in five are not foruds.
+
+## Forud detection: no per-cadence property identifies a forud
+
+Measured with `scripts/diagnose_forud.py` over three corpora of deliberately
+different character -- IRMA's single gushehs, KDC's 35-second excerpts, and
+sixteen whole-radif Shajarian performances of 10 to 30 minutes. A cadence counts
+as real when it resolves on the tonic that best fits the true mode's notated
+profile and bigrams with the tonic prior switched off, so the detector takes no
+part in judging itself.
+
+| feature | IRMA | KDC | Shajarian |
+| --- | --- | --- | --- |
+| shipped `strength` | 0.501 | 0.634 | 0.504 |
+| `descent` | 0.477 | 0.626 | 0.459 |
+| `repose` | 0.576 | 0.658 | 0.619 |
+| `silence_after` | 0.552 | 0.440 | 0.592 |
+| `is_phrase_min` | 0.497 | 0.460 | 0.503 |
+| register lowness | 0.637 | 0.622 | 0.527 |
+| **`consensus`** | **0.720** | **0.755** | **0.851** |
+
+Three things follow.
+
+**The detector's own `strength` cannot identify a forud.** AUC 0.501 and 0.504
+on two of the three corpora, because its dominant multiplicative factor,
+`descent`, is slightly *anti*-predictive at 0.477 and 0.459. A larger drop does
+not mean a cadence. This is why every downstream fix failed: thresholding on
+strength, taking the strongest, weighting by it. There was nothing to threshold.
+
+**No per-cadence property is consistent.** Register lowness looked like the fix
+at 0.637 on IRMA and 0.622 on KDC, and nearly vanishes at 0.527 on whole-radif
+performances, where a traversal spans many registers and the lowest region is
+not specifically the ist. `is_phrase_min` is uninformative everywhere, so a
+forud does *not* resolve on its phrase's lowest note. The best combination,
+`lowness x repose`, is the only candidate that never loses -- 0.649, 0.654,
+0.571 -- and that is a weak signal to rebuild a detector on.
+
+**What locates the tonic is agreement across cadences, and it is already
+exploited.** `consensus` -- the share of all cadential weight falling on a
+degree -- is the strongest column everywhere and strengthens with recording
+length, 0.720 to 0.851. That is precisely what :func:`tonic_prior` aggregates,
+and the weight it is given has already been swept to its optimum over 144
+combinations on five corpora.
+
+So the detector's precision is low, roughly 10-18% of detections landing on the
+tonic, and raising it is not available from these features. The forud prior is
+already extracting the one thing that works.
+
+A candidate change was implemented and then reverted rather than committed:
+replacing `strength` with `lowness x repose x silence` and demoting `descent` to
+a gate. It improves AUC on all three corpora but was never measured end to end,
+and an unvalidated change to the scorer is worse than none. Re-applying it is a
+small edit to `find_foruds`, and the measurement to run first is the five-corpus
+accuracy sweep, since better-weighted votes still have to prove they sharpen a
+consensus the prior already recovers.
