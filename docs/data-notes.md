@@ -1403,3 +1403,86 @@ A first-run artefact also corrected here: a reimplementation used `max()` to
 compare the two evidences, which breaks exact ties by insertion order and
 reported a swap whenever Nava ranked first -- inflating 51 firings to 182. The
 ties were the finding.
+
+## Where the detected cadences actually land
+
+17,144 cadences over 1,539 Nava recordings, 98.2% of which yield at least one.
+The reference tonic is the one best fitting the *true* mode's notated profile
+and bigrams with the tonic prior switched off, so it is independent of the
+detector being measured -- imperfect, but not circular.
+
+| | share landing on the tonic |
+| --- | --- |
+| all cadences | **21.7%** |
+| the strongest cadence in a recording | 33.7% |
+| the last cadence in a recording | 43.5% |
+| recordings with *any* cadence on it | **70.5%** |
+
+By strength: weak 15.9%, mid 22.0%, strong 30.2% -- monotone, so strength is
+informative and weak. The detector finds about eleven cadences per recording and
+only a couple are real foruds, so the information is present and the problem is
+selection.
+
+### Shur is the one mode whose cadences avoid its tonic
+
+Split by whether the classifier got the recording right, so the pattern cannot
+be an artefact of misclassification:
+
+| dastgah | correctly classified | misclassified |
+| --- | --- | --- |
+| **shur** | **10qt 21%**, 0qt 16% | 10qt 22%, 6qt 17% |
+| nava | **0qt 37%**, 20qt 11% | 0qt 19%, 14qt 16% |
+| mahur | 0qt 26%, 14qt 18% | 0qt 24%, 14qt 16% |
+| homayun | 0qt 24%, 10qt 16% | 0qt 19%, 10qt 16% |
+| chahargah | 0qt 23%, 14qt 14% | 0qt 23%, 14qt 18% |
+| segah | 0qt 20%, 17qt 18% | 17qt 19%, 7qt 15% |
+
+Every other mode peaks on its tonic and Nava peaks hardest at 37%. Shur peaks a
+fourth above, which is its shahed -- and exactly where Nava's tonic sits. **When
+the detector hears Shur, the cadence prior votes for Nava's tonic.** That is the
+mechanism behind 28% of all errors.
+
+A reference-tonic confound was checked and is too small to explain it: the
+profile-only reference disagrees with the shipped tonic by a fourth in 17% of
+Shur recordings, and the landing distribution is the same on correct and
+incorrect ones.
+
+It does contradict the notation, which has Shur's gushehs ending on the tonic
+79.3% of the time -- the highest of the six (`tonic_confidence`). So the
+detector is not finding what the corpus calls a gusheh ending; it is catching
+Shur's characteristic phrase-rests on the shahed, which in Shur is a strong
+resting tone.
+
+### Selecting fewer, better cadences does not help either
+
+The last cadence is twice as likely to land on the tonic as an average one, so
+discarding the rest should pay. It does not:
+
+| selection | pooled | mean of corpora |
+| --- | --- | --- |
+| all (shipped) | **74.2%** | **67.9%** |
+| strong only (strength >= 0.3) | 73.8% | 67.6% |
+| last three | 74.1% | 64.2% |
+| strong, last three | 73.7% | 67.5% |
+| last only | 73.5% | 65.1% |
+
+`tonic_prior` already weights by strength and recency, so a hard selection
+mostly trades coverage for precision at no net gain -- and on the sixteen
+Shajarian radif performances, which traverse many gushehs, "last three" costs
+18.8 points because the closing cadences of a whole-radif performance belong to
+whatever gusheh ended it.
+
+### What this leaves
+
+The 16 points of tonic headroom are not reachable by weighting the cadence
+prior, by selecting among its detections, or by substituting the shahed. The
+detections themselves are ambiguous in exactly the mode that matters: a rest on
+Shur's shahed and a forud onto Nava's tonic are the same pitch class, and a
+24-bin prior over resolution degrees cannot tell them apart.
+
+What distinguishes them is *how the note is reached* -- a forud descends into
+its ist through the mode's own intervals, where a phrase-rest on the shahed
+arrives differently. `Forud` already records `descent`, and the Radif Corpus has
+the closing notes of every gusheh, so the approach pattern is derivable from
+notation rather than fitted. That is the next thing with a mechanism behind it,
+and unlike the shahed it is asymmetric under rotation.
