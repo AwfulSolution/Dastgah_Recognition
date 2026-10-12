@@ -1628,3 +1628,74 @@ and an unvalidated change to the scorer is worse than none. Re-applying it is a
 small edit to `find_foruds`, and the measurement to run first is the five-corpus
 accuracy sweep, since better-weighted votes still have to prove they sharpen a
 consensus the prior already recovers.
+
+## A gated pairwise cascade: right architecture, same wall
+
+Stage one ranks the six dastgahs; when its top two are a confusable pair, a
+classifier trained on *only that pair* decides between them
+(`scripts/cascade.py`).
+
+The gate is what makes this different from everything above, and it is worth
+stating precisely. It fires only when ``{top1, top2} == {A, B}``, so stage one's
+answer is already A or B. A recording whose truth is a third dastgah was already
+wrong and stays wrong; only A-versus-B can change. **The effect is provably
+confined to the pair.** Every earlier attempt lacked that: adding a term to the
+shared score or refitting one template changes what every class competes
+against, and probability handed to Nava came out of Shur and Homayun.
+
+Artist-grouped 5-fold on Nava, against 74.9% for stage one alone:
+
+| features | columns | Nava |
+| --- | --- | --- |
+| rotated profiles + stage-one log-probs + cadence | 53 | **76.7%** |
+| stage-one log-probs + cadence only | 5 | 75.8% |
+
+Per pair, with the full feature set:
+
+| pair | gated | within the gate |
+| --- | --- | --- |
+| chahargah / homayun | 292 | 81.0% -> 85.8% (**+14**) |
+| chahargah / segah | 64 | 69.5% -> 78.0% (+5) |
+| segah / shur | 177 | 86.8% -> 89.3% (+4) |
+| mahur / nava | 75 | 81.2% -> 85.5% (+3) |
+| **nava / shur** | **399** | **76.2% -> 76.5% (+1 of 374)** |
+
+**The cascade fixes same-tonic confusions and cannot fix rotations.** It gains
+most on Chahargah/Homayun, which are confused at the *same* tonic, and does
+essentially nothing for Nava/Shur, whose confusion is a rotation of one shared
+collection. A second classifier reading the same pitch content has nothing new
+to look at when the two hypotheses differ only in which degree is home.
+
+### It does not generalise, under the strictest test available
+
+Trained on Nava and applied elsewhere: KDC -3.2, IRMA -6.9 with the full
+features; -4.2 and -4.6 with the minimal five. So it is not the feature count.
+
+Leave-one-corpus-out -- each pair model trained on two corpora and tested on the
+third, which is the only way to tell a cascade that cannot generalise from one
+merely fitted to a single corpus's habits:
+
+| held-out corpus | n | stage one | cascaded | delta |
+| --- | --- | --- | --- | --- |
+| nava | 1,568 | 74.9% | 69.3% | **-5.5** |
+| kdc | 189 | 57.7% | 55.0% | -2.6 |
+| irma | 130 | 69.2% | 65.4% | -3.8 |
+
+Pooling does not help. The pair models are not learning Nava's habits
+specifically; they do not transfer across recording domains at all, which is the
+same wall as the fourteen fitted configurations above and has the same cause --
+the 24-bin tonic-relative profile supports roughly 70-75% and nothing learned on
+it survives a change of corpus.
+
+### What this does establish
+
+The architecture is sound and it is the best-behaved trained component tried
+here: bounded blast radius, a real within-corpus gain, and a failure mode that is
+purely cross-domain rather than collateral. If a deployment's audio resembles its
+training corpus, the 1.8 points are real. Across corpora they are not, and this
+project has no corpus that can certify the other two.
+
+The useful structural finding is the split: pair-specific classifiers are the
+right tool for same-tonic confusions, and no amount of classifier is the right
+tool for a rotation. Rotations need evidence about *which degree is home*, which
+is the tonic-placement problem, and that is closed out above.
