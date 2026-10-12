@@ -24,12 +24,15 @@ independent lines, and a higher number does not mean a successor.
 each version a redesign of the one before it. Shares a dataset, a split protocol
 and an evaluation.
 
-**Template line — v6 and v7.** A classifier with no trained model at all: modal
-templates derived from Talai's notation of Mirza Abdollah's radif, scored by
-searching jointly over modal classes and tonics. Separate codebase, separate
-corpora, separate accuracy figures. It began as its own repository and was
-brought in at v6; it does not build on v5 and its numbers are not comparable
-with the trained line's, because they are not measured on the same data.
+**Template line — `Radif_Template_Classifier_v1` and `v2`.** A classifier with no
+trained model at all: modal templates derived from Talai's notation of Mirza
+Abdollah's radif, scored by searching jointly over modal classes and tonics.
+Separate codebase, separate corpora, separate accuracy figures.
+
+It carries its own name and its own numbering from 1 precisely so that nothing
+reads as a successor to the trained line. It began as its own repository, it
+does not build on `Dastgah_Classifier_v5`, and its numbers are not comparable
+with the trained line's because they are not measured on the same data.
 
 | folder | line | what it is |
 | --- | --- | --- |
@@ -38,8 +41,8 @@ with the trained line's, because they are not measured on the same data.
 | `Dastgah_Classifier_v3` | trained | Phrase-aware melodic redesign. Note events, track-level tonic, cadence and interval-sequence features. CatBoost on 30s x 6 segments. |
 | `Dastgah_Classifier_v4` | trained | Theory-guided. Adds explicit Persian theory to v3 -- shahed, ist, forud, moteghayyer -- since the confusable dastgahs differ by note *function*, not note inventory. |
 | `Dastgah_Classifier_v5` | trained | v4 plus optional count-based pitch-class features (`count_features`), as an alternative to duration-weighted histograms. |
-| `Dastgah_Classifier_v6` | template | Template classifier, no training. Six dastgahs with avazes folded into their mothers. |
-| `Dastgah_Classifier_v7` | template | v6 plus a gated pairwise cascade for confusable pairs. Not enabled by default. |
+| `Radif_Template_Classifier_v1` | template | Template classifier, no training. Six dastgahs with avazes folded into their mothers. |
+| `Radif_Template_Classifier_v2` | template | v1 plus a gated pairwise cascade for confusable pairs. Not enabled by default. |
 
 ### Why the numbers between the lines cannot be compared
 
@@ -63,7 +66,7 @@ Training_Data/
   Shur/
 ```
 
-The template line (v6-v7) does not read `Training_Data/`; each of those folders
+The template line does not read `Training_Data/`; each of those folders
 documents its own corpora.
 
 ### v4
@@ -77,14 +80,14 @@ documents its own corpora.
 - v4 with optional count-based pitch-class features (`count_features`), counting
   notes per pitch class rather than weighting them by duration.
 
-### v6 and v7 (template line)
+### Radif_Template_Classifier_v1 and v2 (template line)
 
 - No model is trained. Modal templates come from notation, and an unseen
   recording is scored by searching jointly over 13 modal classes and 24 possible
   tonics in a quarter-tone representation.
-- v7 adds a second stage: when the first stage's top two are a confusable pair, a
-  classifier trained on only that pair decides between them. It is off by
-  default, so v7 answers exactly as v6 unless invoked.
+- `Radif_Template_Classifier_v2` adds a second stage: when the first stage's top
+  two are a confusable pair, a classifier trained on only that pair decides
+  between them. It is off by default, so v2 answers exactly as v1 unless invoked.
 - Each folder's `README.md` and `docs/data-notes.md` carry their own accuracy
   figures and, at more length, the approaches that did not work.
 
