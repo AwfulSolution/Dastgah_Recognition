@@ -118,6 +118,15 @@ def main() -> int:
     parser.add_argument("--folds", type=int, default=5)
     parser.add_argument("--features", choices=FEATURE_SETS, default="all")
     parser.add_argument(
+        "--train-on", choices=("all", "gated"), default="all",
+        help=(
+            "'all' trains a pair model on every recording of the two dastgahs, "
+            "which is what the gate's independence is for. 'gated' trains only "
+            "on the ones stage one could not decide -- a biased subset, being "
+            "exactly the hard cases, and smaller"
+        ),
+    )
+    parser.add_argument(
         "--leave-one-corpus-out", type=Path, nargs="*", default=(),
         help=(
             "pool these corpora and test each in turn on pair models trained on "
@@ -171,8 +180,10 @@ def main() -> int:
     models = {}
     for pair in candidates:
         pair_set = frozenset(pair)
-        trainable = np.isin(truth, pair)
         gate = np.array([t == pair_set for t in top_two])
+        trainable = np.isin(truth, pair)
+        if args.train_on == "gated":
+            trainable = trainable & gate
 
         X = np.array([
             pair_features(records[i], stages[i], pair, templates, args.features)
@@ -198,7 +209,8 @@ def main() -> int:
         cascaded[acts] = np.where(decided[acts] == 1, pair[0], pair[1])
 
         print(f"{pair[0]} / {pair[1]}")
-        print(f"  trained on {trainable.sum()} recordings of the two")
+        print(f"  trained on {trainable.sum()} recordings of the two "
+              f"({args.train_on})")
         print(f"  gate fires on {gate.sum()}, of which {acts.sum()} are one of the pair")
         print(f"  within the gate: {100*before.mean():.1f}% -> {100*after.mean():.1f}%"
               f"  ({int(after.sum() - before.sum()):+d} recordings)")

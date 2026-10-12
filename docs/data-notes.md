@@ -1666,6 +1666,24 @@ essentially nothing for Nava/Shur, whose confusion is a rotation of one shared
 collection. A second classifier reading the same pitch content has nothing new
 to look at when the two hypotheses differ only in which degree is home.
 
+### Training set: all of the pair, not just the gated cases
+
+A pair model trains on every recording of the two dastgahs -- 520 for Shur and
+Nava -- and the gate only decides when it is consulted. The gated recordings are
+a biased subset, being exactly the ones stage one could not decide, so the two
+choices are different models and the difference is measurable:
+
+| trained on | Nava | KDC | IRMA |
+| --- | --- | --- | --- |
+| all 520 recordings of the pair | **76.7%** | -3.2 | -6.9 |
+| only the 374 gated ones | 76.6% | -2.1 | -6.9 |
+
+A wash, and mixed per pair: training on everything is better for
+Chahargah/Homayun (+14 against +12) and worse for Segah/Shur (+4 against +8) and
+Mahur/Nava (+3 against +7). Nava/Shur gains one recording of 374 either way.
+Training on all of the pair is kept, being marginally better in-corpus and the
+less surprising default, but this is not where the outcome is decided.
+
 ### It does not generalise, under the strictest test available
 
 Trained on Nava and applied elsewhere: KDC -3.2, IRMA -6.9 with the full
