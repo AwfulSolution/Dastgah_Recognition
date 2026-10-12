@@ -12,3 +12,6 @@ web/dist/
 *.tsbuildinfo
 .claude/settings.local.json
 data/cache/
+
+# Symlink to the repository-root data/ (caches, raw corpora)
+/data
