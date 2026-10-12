@@ -14,3 +14,6 @@ external/
 __pycache__/
 *.pyc
 tonic_audit_results.json
+
+# Node dependencies, never committed
+node_modules/
