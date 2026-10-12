@@ -1,0 +1,47 @@
+/** Theme tokens transcribed from DESIGN.md (Nava Audio Systems). */
+export default {
+  content: ["./index.html", "./src/**/*.{ts,tsx}"],
+  darkMode: "class",
+  theme: {
+    extend: {
+      colors: {
+        background: "#0d1322",
+        surface: "#0d1322",
+        "surface-container-lowest": "#080e1d",
+        "surface-container-low": "#151b2b",
+        "surface-container": "#191f2f",
+        "surface-container-high": "#242a3a",
+        "surface-container-highest": "#2f3445",
+        "on-surface": "#dde2f7",
+        "on-surface-variant": "#d0c5af",
+        outline: "#99907c",
+        "outline-variant": "#4d4635",
+        primary: "#f2ca50",
+        "primary-container": "#d4af37",
+        "on-primary": "#3c2f00",
+        secondary: "#59dad1",
+        "secondary-container": "#00a8a0",
+        "on-secondary": "#003734",
+        tertiary: "#ffbfb1",
+        "tertiary-container": "#ff977f",
+        "on-tertiary": "#621001",
+        error: "#ffb4ab",
+        "error-container": "#93000a",
+        hairline: "rgba(40, 53, 86, 0.5)",
+      },
+      fontFamily: {
+        serif: ['"Noto Serif"', "Georgia", "serif"],
+        sans: ['"Plus Jakarta Sans"', "system-ui", "sans-serif"],
+        mono: ['"JetBrains Mono"', "ui-monospace", "monospace"],
+      },
+      borderRadius: { DEFAULT: "0.25rem", lg: "0.5rem", xl: "0.75rem" },
+      boxShadow: {
+        "glow-gold": "0 0 14px rgba(212, 175, 55, 0.45)",
+        "glow-turquoise": "0 0 12px rgba(32, 178, 170, 0.4)",
+        rim: "inset 0 1px 0 rgba(212, 175, 55, 0.2)",
+        flyout: "0 16px 32px -8px rgba(3, 6, 12, 0.7)",
+      },
+    },
+  },
+  plugins: [],
+};
