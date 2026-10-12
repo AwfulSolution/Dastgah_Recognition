@@ -1,0 +1,32 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  html,
+  body,
+  #root {
+    margin: 0;
+    padding: 0;
+    min-height: 100%;
+  }
+  body {
+    background-color: #070a12;
+    color: #dde2f7;
+    font-family: "Plus Jakarta Sans", system-ui, sans-serif;
+    overscroll-behavior: none;
+  }
+}
+
+@layer components {
+  /* Level 1 vessel from DESIGN.md: solid panel over a hairline border. */
+  .panel {
+    @apply rounded-lg border border-hairline bg-surface-container-low;
+  }
+  .panel-header {
+    @apply flex items-center gap-2 border-b border-hairline px-4 py-2.5;
+  }
+  .label-mono {
+    @apply font-mono text-[11px] uppercase tracking-[0.04em] text-on-surface-variant;
+  }
+}
