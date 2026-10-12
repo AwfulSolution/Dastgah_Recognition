@@ -6,6 +6,15 @@ by duration. Everything else below describes the v4 design that v5 inherits
 unchanged.
 
 > Part of the **trained line** (v1-v5), which learns from `Training_Data/`.
+>
+> **v5 was branched from a v4 that has since moved on.** The v4 folder now
+> carries work this folder does not: `koron_features` on by default, measured at
+> +2.3 and reproduced on independently recomputed features, where v5 still has it
+> `False`; and the external-validation tooling `fetch_kdc.py` and
+> `eval_external.py`, which put v4 at 0.522 on the KUG Dastgahi Corpus against
+> 0.546 grouped CV. v5 has none of those files. Its own figures below predate all
+> of it, so read them as v4-at-the-time plus count features, not as the current
+> best of the trained line.
 > v6 and v7 are a separate, untrained template line and not successors to this;
 > see the root `README.md`.
 
