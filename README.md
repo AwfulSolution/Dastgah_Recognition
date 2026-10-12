@@ -15,24 +15,43 @@ Target classes:
 - `Segah`
 - `Shur`
 
+## Two lines of work
+
+The version folders are **not one continuous progression**. There are two
+independent lines, and a higher number does not mean a successor.
+
+**Trained line — v1 through v5.** Supervised models learned from `Training_Data/`,
+each version a redesign of the one before it. Shares a dataset, a split protocol
+and an evaluation.
+
+**Template line — v6 and v7.** A classifier with no trained model at all: modal
+templates derived from Talai's notation of Mirza Abdollah's radif, scored by
+searching jointly over modal classes and tonics. Separate codebase, separate
+corpora, separate accuracy figures. It began as its own repository and was
+brought in at v6; it does not build on v5 and its numbers are not comparable
+with the trained line's, because they are not measured on the same data.
+
+| folder | line | what it is |
+| --- | --- | --- |
+| `Dastgah_Classifier_v1` | trained | Baseline. scikit models (LR/SVM/stacking), CNN variants, Streamlit UI. |
+| `Dastgah_Classifier_v2` | trained | Interval-first redesign. pYIN on harmonic audio, interval histograms and transitions, percussion filtering. |
+| `Dastgah_Classifier_v3` | trained | Phrase-aware melodic redesign. Note events, track-level tonic, cadence and interval-sequence features. CatBoost on 30s x 6 segments. |
+| `Dastgah_Classifier_v4` | trained | Theory-guided. Adds explicit Persian theory to v3 -- shahed, ist, forud, moteghayyer -- since the confusable dastgahs differ by note *function*, not note inventory. |
+| `Dastgah_Classifier_v5` | trained | v4 plus optional count-based pitch-class features (`count_features`), as an alternative to duration-weighted histograms. |
+| `Dastgah_Classifier_v6` | template | Template classifier, no training. Six dastgahs with avazes folded into their mothers. |
+| `Dastgah_Classifier_v7` | template | v6 plus a gated pairwise cascade for confusable pairs. Not enabled by default. |
+
+### Why the numbers between the lines cannot be compared
+
+The trained line reports held-out accuracy on `Training_Data/`, roughly 570
+tracks. The template line reports accuracy on Nava, KDC, IRMA and a Shajarian
+radif set, none of which it was tuned on, and it has no training split at all
+because nothing is fitted. A figure from one line placed beside a figure from
+the other says nothing.
+
 ## Repository structure
 
-- `Dastgah_Classifier_v1`
-  - Baseline production pipeline.
-  - Includes scikit models (LR/SVM/stacking), CNN training, and Streamlit UI.
-- `Dastgah_Classifier_v2`
-  - Interval-first redesign.
-  - Focuses on pitch-interval behavior, tonic/cadence patterns, and better filtering of non-pitched percussion-heavy segments.
-- `Dastgah_Classifier_v3`
-  - Phrase-aware melodic redesign.
-  - Converts pitch frames into note events, estimates a track-level tonic, and adds phrase cadence plus interval-sequence features.
-  - Current production model: CatBoost on 30s x 6 segments (test acc 0.765, macro F1 0.750; see `Dastgah_Classifier_v3/README.md`).
-
-Shared dataset location (for both):
-
-- `Training_Data/`
-
-Expected dataset layout:
+- `Training_Data/` -- the dataset the trained line (v1-v5) learns from.
 
 ```text
 Training_Data/
@@ -44,25 +63,30 @@ Training_Data/
   Shur/
 ```
 
-## Modeling approach
+The template line (v6-v7) does not read `Training_Data/`; each of those folders
+documents its own corpora.
 
-### v1
+### v4
 
-- Feature-based scikit pipeline + CNN variants.
-- Supports mode-aware features and caching.
-- Good as stable baseline and comparison target.
+- Adds explicit Persian music theory to the v3 pipeline: shahed, ist, forud and
+  moteghayyer features, plus grouped cross-validation to keep a performer out of
+  both sides of a split.
 
-### v2
+### v5
 
-- Extracts interval-centric representations from harmonic content.
-- Uses voiced/harmonic gating to suppress low-pitch/no-pitch and percussive segments.
-- Designed to better capture Dastgah-defining melodic interval relations.
+- v4 with optional count-based pitch-class features (`count_features`), counting
+  notes per pitch class rather than weighting them by duration.
 
-### v3
+### v6 and v7 (template line)
 
-- Extracts note events from harmonic pitch tracks before feature pooling.
-- Estimates tonic at track level using duration-weighted pitch usage, stable notes, and phrase endings.
-- Adds cadence, stable-note, transition, and step-bigram features so some melodic order survives the feature vector.
+- No model is trained. Modal templates come from notation, and an unseen
+  recording is scored by searching jointly over 13 modal classes and 24 possible
+  tonics in a quarter-tone representation.
+- v7 adds a second stage: when the first stage's top two are a confusable pair, a
+  classifier trained on only that pair decides between them. It is off by
+  default, so v7 answers exactly as v6 unless invoked.
+- Each folder's `README.md` and `docs/data-notes.md` carry their own accuracy
+  figures and, at more length, the approaches that did not work.
 
 ## Typical workflow
 

@@ -1,4 +1,24 @@
-# Dastgah Classifier v5 — theory-guided
+# Dastgah Classifier v5 — theory-guided, with count-based features
+
+v5 is v4 with one addition: an optional count-based pitch-class feature block
+(`count_features`), which counts notes per pitch class instead of weighting them
+by duration. Everything else below describes the v4 design that v5 inherits
+unchanged.
+
+> Part of the **trained line** (v1-v5), which learns from `Training_Data/`.
+> v6 and v7 are a separate, untrained template line and not successors to this;
+> see the root `README.md`.
+
+## What v5 adds over v4
+
+- `MelodicFeatureConfig.count_features` adds `bins_per_octave` columns holding
+  the proportion of *notes* falling in each pitch class, alongside the existing
+  duration-weighted histograms. A long held note and a short one count the same.
+- The feature signature gains a `-cnt1` suffix when it is on, so caches built
+  with and without it do not collide.
+- Off by default, so v5 reproduces v4 unless it is enabled.
+
+## The v4 design, inherited
 
 v4 starts from the v3 phrase-aware melodic pipeline (pyin note events, tonic-relative
 pitch-class/interval/duration histograms, cadence weighting, 30s×6 segments, CatBoost)

@@ -1,4 +1,13 @@
-# Dastgāh Classifier
+# Dastgah Classifier v7 — v6 plus a gated pairwise cascade
+
+> Part of the **template line** (v6-v7), and the only version here that
+> trains anything: a classifier per confusable dastgah pair, consulted only when
+> the first stage's top two are that pair. It is **off by default**, so v7
+> answers exactly as v6 unless the cascade is invoked, and the rest of this file
+> describes the v6 classifier it sits on.
+>
+> It is not a successor to v5; see the root `README.md` for why the two lines'
+> numbers cannot be compared.
 
 Identifies the **dastgāh** or **āvāz** of a Persian classical recording, along with
 its tonic, its quarter-tone degrees, and where it changes mode.
