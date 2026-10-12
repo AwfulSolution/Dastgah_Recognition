@@ -1,4 +1,14 @@
-# Dastgāh Classifier
+# Dastgah Classifier v6 — template classifier, no training
+
+> Part of the **template line** (v6-v7). Nothing here is trained: modal
+> templates come from Talai's notation of Mirza Abdollah's radif, and every
+> scoring parameter is fixed from notation rather than fitted.
+>
+> This is **not a successor to v5**. The trained line (v1-v5) learns from
+> `Training_Data/` and reports held-out accuracy on it; this line reports
+> accuracy on Nava, KDC, IRMA and a Shajarian radif set, none of which it was
+> tuned on, and has no training split because nothing is fitted. Figures from
+> the two lines are not comparable. See the root `README.md`.
 
 Identifies the **dastgāh** or **āvāz** of a Persian classical recording, along with
 its tonic, its quarter-tone degrees, and where it changes mode.
