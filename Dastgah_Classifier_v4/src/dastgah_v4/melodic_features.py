@@ -58,14 +58,18 @@ class MelodicFeatureConfig:
     # 0.542, 2026-07-07) — kept opt-in for the soft-profile rework.
     function_features: bool = False
     # Farhat interval templates: cosine alignment of the tonic-relative PC
-    # histogram against each dastgah's theoretical scale (performer-invariant
-    # anchors). Opt-in pending CV validation.
+    # histogram against each dastgah's theoretical scale. Off: measured 0.7
+    # points below parity on pooled grouped CV (0.516 vs 0.523), and adding
+    # them on top of koron costs 0.2 — their 50-cent bins carry nothing the
+    # koron block's 10-cent resolution does not already capture.
     template_features: bool = False
     # Cents-level koron features: fine (10-cent) intonation histograms over
     # the theory-critical regions (neutral 2nd, 3rd, 6th) using the continuous
     # midi_mean of cached notes — quarter-tone bins blur exactly the neutral
-    # intervals that separate the Shur/Segah families. Opt-in.
-    koron_features: bool = False
+    # intervals that separate the Shur/Segah families. On by default: best
+    # measured config, +2.3 pooled accuracy over parity (0.546 vs 0.523),
+    # concentrated in Segah (+8.5 F1) and Mahur (+4.5).
+    koron_features: bool = True
 
 
 @dataclass
