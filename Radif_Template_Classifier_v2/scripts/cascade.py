@@ -67,7 +67,36 @@ def stage_one(records, templates):
 #: 48 of the 53 columns. Those are raw pitch-class bins, and every model built
 #: on them in this project has failed to transfer between corpora; ``minimal``
 #: exists to test whether the cascade's gains survive without them.
-FEATURE_SETS = ("all", "minimal")
+#: ``cadence`` is the one set here that reads no tonic-relative pitch profile.
+#: Every model in this project built on those 24 bins has failed to transfer
+#: between corpora, and the representation itself caps out near 70-75%. A
+#: cadence approach is anchored on the note *resolved onto* rather than on the
+#: tonic, which makes it asymmetric under rotation -- the property a pitch
+#: profile lacks, and the reason Shur and Nava are indistinguishable to one.
+FEATURE_SETS = ("all", "minimal", "cadence")
+
+
+def gate_mask(stages, pair, margin):
+    """Which recordings the second stage is allowed to decide.
+
+    Two conditions. The pair must hold the top two places, which is what
+    confines the cascade's effect to that pair: stage one has already answered A
+    or B, so a recording whose truth is a third dastgah was wrong either way.
+    And stage one must be *undecided* between them by at most ``margin``, which
+    keeps the second stage away from recordings the first already reads
+    confidently.
+    """
+    wanted = frozenset(pair)
+    out = []
+    for stage in stages:
+        order = stage["order"]
+        if frozenset(order[:2]) != wanted:
+            out.append(False)
+            continue
+        probabilities = stage["probabilities"]
+        separation = probabilities.get(order[0], 0.0) - probabilities.get(order[1], 0.0)
+        out.append(separation <= margin)
+    return np.array(out)
 
 
 def pair_features(record, stage, pair, templates, which="all"):
@@ -86,12 +115,39 @@ def pair_features(record, stage, pair, templates, which="all"):
         for key in (first, second):
             tonic = stage["tonics"].get(key, 0)
             blocks.append(np.roll(histogram, -tonic))
+
+    if which == "cadence":
+        # How cadences resolving on each hypothesis's tonic were approached,
+        # plus how much cadential weight that tonic carries at all. No bin of
+        # this is the tonic-relative pitch profile.
+        foruds = record.get("foruds") or []
+        approaches = record.get("approaches") or []
+        for key in (first, second):
+            tonic = stage["tonics"].get(key, 0)
+            shape, weight = np.zeros(24), 0.0
+            for forud, approach in zip(foruds, approaches):
+                if approach is None or forud.resolution_pc != tonic:
+                    continue
+                shape += forud.strength * np.asarray(approach, dtype=float)
+                weight += forud.strength
+            blocks.append(shape / weight if weight > 0 else shape)
+            blocks.append(np.array([weight, float(weight > 0)]))
+        return np.concatenate([*blocks, _cadence_fit(record, stage, pair, templates)])
+
     probabilities = [
         np.log(stage["probabilities"].get(first, 0.0) + 1e-9),
         np.log(stage["probabilities"].get(second, 0.0) + 1e-9),
     ]
     probabilities.append(probabilities[0] - probabilities[1])
 
+    return np.concatenate([*blocks, probabilities,
+                           _cadence_fit(record, stage, pair, templates)])
+
+
+def _cadence_fit(record, stage, pair, templates):
+    """Agreement between how each hypothesis's cadences were approached and how
+    that mode approaches a close in the notated radif."""
+    first, second = pair
     cadence = []
     for key in (first, second):
         template = templates.get(stage["modes"].get(key, key))
@@ -105,8 +161,7 @@ def pair_features(record, stage, pair, templates, which="all"):
         )
         similarity = np.array([float(np.dot(a, profile)) for a in approaches])
         cadence.append(float(np.mean(similarity / np.maximum(norms, 1e-9))))
-
-    return np.concatenate([*blocks, probabilities, cadence])
+    return np.array(cadence)
 
 
 def main() -> int:
@@ -117,6 +172,14 @@ def main() -> int:
                         help="pairs confused fewer times than this are not worth a stage")
     parser.add_argument("--folds", type=int, default=5)
     parser.add_argument("--features", choices=FEATURE_SETS, default="all")
+    parser.add_argument(
+        "--gate-margin", type=float, default=1.0,
+        help=(
+            "fire the second stage only when stage one is undecided, that is "
+            "when p(top1) - p(top2) is at most this. The default of 1.0 fires "
+            "whenever the pair holds the top two, confident or not"
+        ),
+    )
     parser.add_argument(
         "--train-on", choices=("all", "gated"), default="all",
         help=(
@@ -152,7 +215,7 @@ def main() -> int:
 
     base = float((predicted == truth).mean())
     print(f"{len(records)} recordings, {len(set(artists))} artists, "
-          f"features={args.features}")
+          f"features={args.features}, gate_margin={args.gate_margin:g}")
     print(f"stage one alone: {100 * base:.1f}%\n")
 
     confusion = collections.Counter()
@@ -180,7 +243,7 @@ def main() -> int:
     models = {}
     for pair in candidates:
         pair_set = frozenset(pair)
-        gate = np.array([t == pair_set for t in top_two])
+        gate = gate_mask(stages, pair, args.gate_margin)
         trainable = np.isin(truth, pair)
         if args.train_on == "gated":
             trainable = trainable & gate
@@ -258,7 +321,7 @@ def main() -> int:
                 model = LogisticRegression(max_iter=4000).fit(
                     np.array(rows), np.array(labels)
                 )
-                gate = np.array([t == pair_set for t in held_top2])
+                gate = gate_mask(st, pair, args.gate_margin)
                 if not gate.any():
                     continue
                 X = np.array([
@@ -284,7 +347,7 @@ def main() -> int:
         fired = 0
         for pair, model in models.items():
             pair_set = frozenset(pair)
-            gate = np.array([t == pair_set for t in other_top2])
+            gate = gate_mask(other_stages, pair, args.gate_margin)
             if not gate.any():
                 continue
             X = np.array([

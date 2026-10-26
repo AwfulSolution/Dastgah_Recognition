@@ -1717,3 +1717,63 @@ The useful structural finding is the split: pair-specific classifiers are the
 right tool for same-tonic confusions, and no amount of classifier is the right
 tool for a rotation. Rotations need evidence about *which degree is home*, which
 is the tonic-placement problem, and that is closed out above.
+
+## Two more second-stage ideas, both refuted
+
+### Gating on stage one's margin only makes the cascade fire less
+
+The gate fired whenever a confusable pair held the top two, including on
+recordings stage one already read confidently. Requiring
+`p(top1) - p(top2) <= margin` should confine the second stage to genuinely
+undecided tracks:
+
+| margin | Nava | KDC | IRMA | KDC fires | IRMA fires |
+| --- | --- | --- | --- | --- | --- |
+| 1.0 (fire always) | **76.7%** (+1.8) | 54.5% (-3.2) | 62.3% (-6.9) | 146 | 113 |
+| 0.3 | 76.7% (+1.8) | 52.9% (-4.8) | 62.3% (-6.9) | 85 | 64 |
+| 0.1 | 75.4% (+0.6) | 54.0% (-3.7) | 66.9% (-2.3) | 34 | 26 |
+| 0.05 | 75.2% (+0.3) | 55.6% (-2.1) | 68.5% (-0.8) | 24 | 10 |
+| baseline | 74.9% | 57.7% | 69.2% | | |
+
+Gain and damage shrink together with the firing count -- IRMA goes from 113
+fires and -6.9 to 10 fires and -0.8 -- so this is dilution, not improvement, and
+the limit as the margin tightens is doing nothing. **Stage one's confidence does
+not identify where the pair model is trustworthy**: even on the recordings it is
+least sure about, the pair model is wrong more often than right on an unseen
+corpus.
+
+### A pair model on cadence approaches alone is worse than one on the profile
+
+The first learned thing here reading no tonic-relative pitch profile:
+strength-weighted mean approach profiles of the cadences resolving on each
+hypothesis's tonic, how much cadential weight each tonic carries, and agreement
+with the mode's notated approach. 54 features, none of them the 24 bins.
+
+The motivation was sound -- an approach is anchored on the note resolved onto,
+so it is asymmetric under rotation, the property a pitch profile lacks and the
+reason Shur and Nava are indistinguishable to one.
+
+It loses everywhere, and on **every pair**:
+
+| | Nava | KDC | IRMA |
+| --- | --- | --- | --- |
+| baseline | 74.9% | 57.7% | 69.2% |
+| cadence-only | **66.5%** (-8.4) | 44.4% (-13.2) | 60.0% (-9.2) |
+
+Leave-one-corpus-out: -29.5, -10.6, -7.7. Shur/Nava, predicted in advance to be
+where this would help, loses 15 recordings inside its own gate.
+
+The diagnosis is quantity, not representation. Over the 399 recordings where Shur
+and Nava hold the top two:
+
+    cadences resolve on BOTH hypotheses' tonics : 193  (48%)
+    on only one                                 : 167  (42%)
+    on neither                                  :  39  (10%)
+    median cadences at a hypothesis's tonic     :   1  of 6 detected
+
+A 24-bin approach shape averaged over a **single** cadence is noise, and in 52%
+of cases one of the two blocks is a constant zero vector, so the model is reading
+an emptiness indicator rather than a shape. The cadence approach remains the
+right *kind* of feature and there is not enough of it per recording to estimate
+one. That is the same wall as the forud detector's 20% precision, reached from a
+new direction.
