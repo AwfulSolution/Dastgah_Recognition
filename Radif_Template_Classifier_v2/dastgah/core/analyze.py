@@ -24,8 +24,9 @@ from dastgah.core.audio import (
     track_pitch,
     transition_matrix,
 )
+from dastgah.core.cascade import load_pair_models, second_opinion as _second_opinion
 from dastgah.core.classify import DEFAULT_CONFIG, ScoringConfig, classify
-from dastgah.core.forud import Forud, find_foruds, tonic_prior
+from dastgah.core.forud import Forud, approach_profile, find_foruds, tonic_prior
 from dastgah.radif.gusheh import (
     GushehTemplate,
     identify_gusheh,
@@ -138,6 +139,12 @@ class AnalysisResult:
     gushehs: list[GushehCandidate] = field(default_factory=list)
     degrees: list[Degree] = field(default_factory=list)
     segments: list[Segment] = field(default_factory=list)
+    #: A pair model's view, when the top two are a pair it was trained for, and
+    #: ``None`` otherwise. **Never the answer** -- the pair models gain on the
+    #: corpus they were fitted to and lose on every other one, and an upload
+    #: from an unfamiliar source is exactly that case. Carried so a listener can
+    #: see where the two disagree, which is where an ear is most useful.
+    second_opinion: dict | None = None
 
     def to_dict(self) -> dict:
         payload = asdict(self)
@@ -506,6 +513,7 @@ def analyze(
     with_segments: bool = True,
     with_gushehs: bool = True,
     answer_space: tuple[str, ...] | None = DASTGAHS_WITH_AUDIO,
+    pair_models: "dict | bool | None" = None,
 ) -> AnalysisResult:
     """Analyse a recording and return its modal classification.
 
@@ -559,6 +567,23 @@ def analyze(
         # be an avaz of the winning dastgah rather than the dastgah itself.
         best = result.best_for_dastgah(ranked[0][0])
         family_source = restrict(templates, answer_space)
+
+    opinion = None
+    if answer_space is not None and pair_models is not False:
+        models = load_pair_models() if pair_models is None else pair_models
+        if models:
+            tonics, modes = {}, {}
+            for key in answer_space:
+                try:
+                    candidate = result.best_for_dastgah(key)
+                except KeyError:
+                    continue
+                tonics[key], modes[key] = candidate.tonic_pc, candidate.key
+            approaches = [approach_profile(events, f) for f in foruds]
+            opinion = _second_opinion(
+                ranked, histogram, tonics, modes, templates, models,
+                foruds=foruds, approaches=approaches,
+            )
 
     winner = ranked[0][0]
     modal = MODAL_CLASSES_BY_KEY[winner]
@@ -620,6 +645,7 @@ def analyze(
             if gusheh_templates
             else []
         ),
+        second_opinion=opinion,
         segments=(
             _segments(
                 track, events, templates, config, gusheh_templates, best.tonic_pc
