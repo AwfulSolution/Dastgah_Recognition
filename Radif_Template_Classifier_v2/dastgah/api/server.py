@@ -7,6 +7,7 @@ handling runs the work in a thread rather than blocking the event loop.
 from __future__ import annotations
 
 import logging
+import os
 import tempfile
 import warnings
 from pathlib import Path
@@ -46,9 +47,21 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
+#: Browser origins allowed to call this API.
+#:
+#: The deployed front end is served from a different host to the API, because
+#: the analysis needs numba and llvmlite and does not fit a serverless bundle,
+#: so its origin has to be named. ``ALLOWED_ORIGINS`` takes a comma-separated
+#: list; the local dev server is always allowed.
+ALLOWED_ORIGINS = [
+    "http://localhost:5173",
+    "http://127.0.0.1:5173",
+    *[o.strip() for o in os.environ.get("ALLOWED_ORIGINS", "").split(",") if o.strip()],
+]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=ALLOWED_ORIGINS,
     allow_methods=["GET", "POST"],
     allow_headers=["*"],
 )

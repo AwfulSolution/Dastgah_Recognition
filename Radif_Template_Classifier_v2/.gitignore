@@ -15,3 +15,6 @@ data/cache/
 
 # Symlink to the repository-root data/ (caches, raw corpora)
 /data
+
+# Scratch audio staged for a browser test
+web/public/

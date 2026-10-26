@@ -5,6 +5,7 @@ import ProbabilityLedger from "./components/ProbabilityLedger";
 import DegreeGrid from "./components/DegreeGrid";
 import SegmentTimeline from "./components/SegmentTimeline";
 import GushehTimeline from "./components/GushehTimeline";
+import SecondOpinion from "./components/SecondOpinion";
 import ExportBar from "./components/ExportBar";
 import WaveformScrubber from "./components/WaveformScrubber";
 import { analyzeFile, ApiError } from "./lib/api";
@@ -112,6 +113,7 @@ export default function App() {
         {result && (
           <div className="mt-5 grid gap-5 lg:grid-cols-2">
             <ClassificationPanel result={result} />
+            <SecondOpinion result={result} />
             <ProbabilityLedger result={result} />
             {audio && (
               <div className="lg:col-span-2">

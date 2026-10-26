@@ -35,6 +35,15 @@ export interface LedgerRow {
   probability: number;
 }
 
+export interface SecondOpinion {
+  pair: [string, string];
+  choice: string;
+  confidence: number;
+  agrees: boolean;
+  trained_on: string;
+  n_recordings: number;
+}
+
 export interface AnalysisResult {
   source: string;
   duration: number;
@@ -66,6 +75,16 @@ export interface AnalysisResult {
   gushehs: GushehCandidate[];
   degrees: Degree[];
   segments: Segment[];
+
+  /**
+   * A model trained on only the top two dastgahs, consulted when they are a
+   * pair the classifier is known to confuse. Null when they are not.
+   *
+   * Never the answer. It gains on the corpus it was fitted to and loses on
+   * every other one, and an upload is exactly that case. It is shown so a
+   * listener can see where the two readings part.
+   */
+  second_opinion: SecondOpinion | null;
 
   /** Identified scale as MusicXML; supplied by the API, absent otherwise. */
   musicxml?: string;

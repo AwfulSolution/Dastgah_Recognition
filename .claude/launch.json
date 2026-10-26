@@ -2,10 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "web",
+      "name": "dastgah-web",
       "runtimeExecutable": "npm",
-      "runtimeArgs": ["run", "dev"],
-      "cwd": "web",
+      "runtimeArgs": ["run", "dev", "--prefix", "Radif_Template_Classifier_v2/web"],
       "port": 5173
     }
   ]

@@ -1,0 +1,29 @@
+# Fly.io service for the classifier's API. Deploy with:
+#   fly launch --no-deploy    (once, to create the app)
+#   fly deploy
+app = "dastgah-classifier"
+primary_region = "cdg"
+
+[build]
+  dockerfile = "Dockerfile"
+
+[env]
+  # Set to the deployed front end's origin, or CORS will reject its uploads:
+  #   fly secrets set ALLOWED_ORIGINS="https://your-app.vercel.app"
+  PORT = "8080"
+
+[http_service]
+  internal_port = 8080
+  force_https = true
+  # Analysis runs at roughly 56x realtime, so a ten-minute upload needs about
+  # eleven seconds of CPU. Keeping one machine warm avoids paying numba's JIT
+  # warm-up on the first upload after an idle period.
+  auto_stop_machines = "suspend"
+  auto_start_machines = true
+  min_machines_running = 1
+
+[[vm]]
+  # librosa and numba want headroom; 512 MB is not enough for a long upload.
+  memory = "2gb"
+  cpu_kind = "shared"
+  cpus = 2
