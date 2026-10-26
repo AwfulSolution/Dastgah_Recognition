@@ -1777,3 +1777,56 @@ an emptiness indicator rather than a shape. The cadence approach remains the
 right *kind* of feature and there is not enough of it per recording to estimate
 one. That is the same wall as the forud detector's 20% precision, reached from a
 new direction.
+
+### A cascade over long recordings has no room to work
+
+The last of the second-stage ideas, and it does not answer its question.
+
+| features | nava_long (218) | KDC | IRMA |
+| --- | --- | --- | --- |
+| baseline | **89.0%** | 57.7% | 69.2% |
+| all | 89.9% (+0.9) | +0.0 | +0.0 |
+| minimal | 89.0% (+0.0) | +0.0 | +0.0 |
+| cadence | 84.4% (-4.6) | -1.1 | -0.8 |
+
+At 89% only one pair clears the error threshold, the gate fires on 47 of 218,
+and the best result is **+2 recordings**. The transfer columns are not evidence
+either: trained on long recordings the gate fires just **13 times** on KDC and
+IRMA, which are short-recording corpora, so +0.0 means "almost never fired".
+
+The cadence row looks like it refutes the scarcity explanation above -- density
+is relieved fivefold here, median 5 cadences per hypothesis tonic against 1, and
+92% of recordings have them on both -- but the training set also shrank from 524
+records to 77 for a 54-feature model. Both candidate causes moved at once, so
+this run cannot separate them, and the experiment was set up badly: testing the
+quantity hypothesis needed training-set size held constant while density varied.
+That question stays open.
+
+## The second layer, closed
+
+Four designs, four negatives:
+
+| | within corpus | transfers? |
+| --- | --- | --- |
+| gated pairwise cascade | +1.8 on Nava | no: -3.2 KDC, -6.9 IRMA |
+| margin gating | +1.8 to +0.3 | no: dilution only |
+| cadence-only features | -8.4 | no: -13.2, -9.2 |
+| cascade over long recordings | +0.9 (2 recordings) | untestable, gate fires 13 times |
+
+What the line did establish, and it is worth keeping:
+
+- **The gate is the right shape.** Firing only when a confusable pair holds the
+  top two confines a second stage's effect to that pair, provably. Any future
+  second stage should keep it.
+- **Pair models fix same-tonic confusions and cannot fix rotations.**
+  Chahargah/Homayun gains 14 recordings inside its gate; Shur/Nava gains one of
+  374. Two modes sharing a pitch collection and differing only in which degree is
+  home give a second classifier nothing new to read.
+- **Within-corpus cross-validation is not evidence here.** Every design above
+  gains on the corpus it was fitted to. Only leave-one-corpus-out separates them,
+  and it fails all of them.
+
+The common cause across these four and the fourteen fitted configurations before
+them is the same: one corpus large enough to train on, three to test against, and
+nothing learned on one survives the others. More recording domains would change
+what is answerable; another second-stage variant would not.
