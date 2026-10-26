@@ -579,6 +579,16 @@ def analyze(
         best = result.best_for_dastgah(ranked[0][0])
         family_source = restrict(templates, answer_space)
 
+    # Templates a segment may be labelled with: everything folding into the
+    # answer space, avazes included. See the segments= argument below.
+    segment_templates = (
+        templates if answer_space is None
+        else {
+            k: v for k, v in templates.items()
+            if (MODAL_CLASSES_BY_KEY[k].parent or k) in answer_space
+        }
+    )
+
     opinion = None
     if answer_space is not None and pair_models is not False:
         models = load_pair_models() if pair_models is None else pair_models
@@ -659,12 +669,16 @@ def analyze(
         second_opinion=opinion,
         segments=(
             _segments(
-                # Segment over the same answer space the classification used.
-                # Passing the full template set let the timeline name modes the
-                # classifier cannot answer -- Rast-Panjgah above all, whose
-                # breadth is exactly why it was removed, and which took most of
-                # a Shur recording's timeline when it was still in here.
-                track, events, family_source, config, gusheh_templates,
+                # Segment over what the answer space can actually contain: the
+                # answerable dastgahs *and* their avazes. Passing every template
+                # let the timeline name Rast-Panjgah, which the classifier cannot
+                # answer and whose breadth took most of a Shur recording's
+                # timeline. Passing `family_source` would over-correct the other
+                # way: it drops the avazes too, and folding an avaz into its
+                # mother beats dropping it by 6.7 points on the archive and 33.5
+                # on KDC's avaz audio. A Dashti passage should be labelled
+                # Dashti, not forced onto Shur.
+                track, events, segment_templates, config, gusheh_templates,
                 best.tonic_pc,
             )
             if with_segments
