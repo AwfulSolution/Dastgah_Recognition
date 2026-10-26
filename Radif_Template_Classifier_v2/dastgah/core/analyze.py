@@ -375,6 +375,17 @@ def _window_emissions(
 def _viterbi(emissions: np.ndarray, switch_penalty: float) -> np.ndarray:
     """Most likely mode sequence, charging ``switch_penalty`` per mode change.
 
+    The penalty is high because the evidence is thin. A label here comes from a
+    twenty-second window, and whole recordings score 74.9% at a 75-second median
+    against 89.0% over three minutes -- twenty seconds is well below either, and
+    window-level decisions measured worse than pooling the same audio. Raising
+    the penalty from 4 to 12 takes a 21-minute performance from 17 segments to
+    4. It does not make the labels truer: at every penalty only about 14% of
+    that recording's timeline agrees with its own whole-recording answer, and at
+    24 the entire thing collapses into one confident-looking segment that
+    disagrees outright. The penalty buys legibility; the caller must not present
+    these labels with the confidence of the headline answer.
+
     Windows are scored independently and a single window rarely holds enough
     notes to identify a mode on its own, so the raw argmax flickers. Requiring a
     change to be paid for means only sustained evidence moves the decoded path,
@@ -418,7 +429,7 @@ def _segments(
     *,
     window: float = 20.0,
     hop: float = 5.0,
-    switch_penalty: float = 4.0,
+    switch_penalty: float = 12.0,
     min_segment: float = 15.0,
 ) -> list[Segment]:
     """Trace where the performance changes mode.
@@ -648,7 +659,13 @@ def analyze(
         second_opinion=opinion,
         segments=(
             _segments(
-                track, events, templates, config, gusheh_templates, best.tonic_pc
+                # Segment over the same answer space the classification used.
+                # Passing the full template set let the timeline name modes the
+                # classifier cannot answer -- Rast-Panjgah above all, whose
+                # breadth is exactly why it was removed, and which took most of
+                # a Shur recording's timeline when it was still in here.
+                track, events, family_source, config, gusheh_templates,
+                best.tonic_pc,
             )
             if with_segments
             else []

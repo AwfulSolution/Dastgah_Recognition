@@ -137,3 +137,30 @@ def test_every_segment_clears_the_minimum_duration(templates):
     # The first and last are stretched to cover the recording, so check the rest.
     for segment in segments[1:-1]:
         assert segment.end - segment.start >= 15.0
+
+
+def test_segments_never_name_a_mode_outside_the_answer_space():
+    """The timeline must not label a recording with a class the answer cannot be.
+
+    Rast-Panjgah is excluded from the answer space because its template is broad
+    enough to attract everything; leaving it in the segmenter let it take most of
+    a Shur recording's timeline while the headline answer said Shur.
+    """
+    from pathlib import Path
+
+    from dastgah.core.analyze import DEFAULT_TEMPLATE_PATH, analyze
+    from dastgah.radif.templates import DASTGAHS_WITH_AUDIO
+    from dastgah.theory import MODAL_CLASSES_BY_KEY
+
+    audio = sorted(Path("data/raw/kdc").rglob("*.flac"))
+    if not audio:
+        import pytest
+
+        pytest.skip("no local audio to segment")
+
+    result = analyze(audio[0], answer_space=DASTGAHS_WITH_AUDIO, with_gushehs=False)
+    for segment in result.segments:
+        mother = MODAL_CLASSES_BY_KEY[segment.key].parent or segment.key
+        assert mother in DASTGAHS_WITH_AUDIO, (
+            f"segment labelled {segment.key}, which is outside the answer space"
+        )

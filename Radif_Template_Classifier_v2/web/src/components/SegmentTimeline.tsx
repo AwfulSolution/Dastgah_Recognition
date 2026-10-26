@@ -31,6 +31,15 @@ export default function SegmentTimeline({ result }: { result: AnalysisResult }) 
     );
   }
 
+  // How much of the timeline agrees with the whole-recording answer. On a long
+  // performance this is routinely low -- about 14% on a 21-minute test case --
+  // because each label rests on twenty seconds. Showing it is more honest than
+  // letting a reader assume the timeline corroborates the classification.
+  const agreeing = result.segments
+    .filter((s) => s.key === result.key)
+    .reduce((total, s) => total + (s.end - s.start), 0);
+  const agreement = result.duration > 0 ? agreeing / result.duration : 1;
+
   const colourFor = new Map<string, string>();
   result.segments.forEach((segment) => {
     if (!colourFor.has(segment.key))
@@ -52,11 +61,21 @@ export default function SegmentTimeline({ result }: { result: AnalysisResult }) 
           Overlapping 20-second windows, smoothed so a mode change needs sustained
           evidence.{" "}
           <span className="text-tertiary">
-            Each window sees less than the whole recording, so these labels are
-            less reliable than the classification above — read them as structure,
-            not verdicts.
+            A 20-second window is far less evidence than the whole recording —
+            which scores 74.9% at a 75-second median and 89.0% past three minutes
+            — so these are the least reliable numbers here. They often disagree
+            with the answer above, and when they do, the answer above is the one
+            to trust.
           </span>
         </p>
+        {agreement < 0.5 && (
+          <p className="mb-3 rounded border border-hairline/60 px-3 py-2 font-mono text-[11px] leading-relaxed text-secondary">
+            Only {(agreement * 100).toFixed(0)}% of this timeline is labelled{" "}
+            {result.short_name ?? result.name}, the overall answer. That is a
+            known weakness of window-level labelling, not evidence against the
+            classification.
+          </p>
+        )}
         <div className="flex h-9 w-full overflow-hidden rounded border border-hairline">
           {result.segments.map((segment, index) => {
             const width = ((segment.end - segment.start) / result.duration) * 100;

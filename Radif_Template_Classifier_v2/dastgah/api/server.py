@@ -21,7 +21,7 @@ from starlette.concurrency import run_in_threadpool
 from dastgah.core.analyze import DEFAULT_GUSHEH_PATH, DEFAULT_TEMPLATE_PATH, analyze
 from dastgah.core.musicxml import scale_to_musicxml
 from dastgah.radif.gusheh import load_gusheh_templates
-from dastgah.radif.templates import load_templates
+from dastgah.radif.templates import DASTGAHS_WITH_AUDIO, load_templates
 from dastgah.theory import MODAL_CLASSES
 
 logger = logging.getLogger(__name__)
@@ -91,9 +91,18 @@ def health() -> dict:
 
 @app.get("/api/modes")
 def modes() -> dict:
-    """The 13 modal classes and the template statistics behind each."""
+    """The 13 modal classes, and which of them an analysis can answer.
+
+    All thirteen have templates, but only six are answerable. The avazes fold
+    into their mother, so a Dashti recording is correctly answered Shur, and
+    Rast-Panjgah is excluded outright: 91.7% of its gushehs have a near-twin in
+    another dastgah and Panjgah itself is pitch-indistinguishable from Nava's
+    opening daramad, so its template attracts everything. Listing all thirteen
+    without saying which can be returned invited exactly that confusion.
+    """
     loaded = templates()
     return {
+        "answerable": list(DASTGAHS_WITH_AUDIO),
         "modes": [
             {
                 "key": m.key,
@@ -102,6 +111,8 @@ def modes() -> dict:
                 "persian": m.persian,
                 "kind": m.kind,
                 "parent": m.parent,
+                # Whether an analysis can return this, directly or by folding.
+                "answerable": (m.parent or m.key) in DASTGAHS_WITH_AUDIO,
                 "tonic": loaded[m.key].tonic_pc if m.key in loaded else None,
                 "shahed_interval": loaded[m.key].shahed_interval if m.key in loaded else None,
                 "n_gushehs": loaded[m.key].n_gushehs if m.key in loaded else 0,
